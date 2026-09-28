@@ -1,0 +1,36 @@
+[project]
+name = "asmevo"
+version = "0.1.0"
+description = "LLM-guided evolutionary optimization of gcc -O3 x86-64 assembly"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "datasets>=5.0.1",
+    "matplotlib>=3.11.2",
+    "numpy>=2.4.6",
+    "openai>=3.22.1",
+    "pyyaml>=6.0.3",
+]
+
+[project.scripts]
+asmevo = "asmevo.experiments.run:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
