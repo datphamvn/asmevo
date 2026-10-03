@@ -53,14 +53,26 @@ class RunConfig:
 
 
 @dataclass(frozen=True)
+class BestOfNConfig:
+    n: int
+
+
+@dataclass(frozen=True)
 class Config:
     dataset: DatasetConfig
     llm: LLMConfig
     eval: EvalConfig
     run: RunConfig
+    best_of_n: BestOfNConfig
 
 
-_SECTIONS = {"dataset": DatasetConfig, "llm": LLMConfig, "eval": EvalConfig, "run": RunConfig}
+_SECTIONS = {
+    "dataset": DatasetConfig,
+    "llm": LLMConfig,
+    "eval": EvalConfig,
+    "run": RunConfig,
+    "best_of_n": BestOfNConfig,
+}
 
 
 def _read(path: Path) -> dict[str, Any]:

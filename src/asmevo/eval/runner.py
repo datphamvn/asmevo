@@ -66,7 +66,17 @@ def check_tests(
             return Status.CRASH, i, f"killed by signal {-proc.returncode}: {proc.stderr[-500:]}"
         if not outputs_match(proc.stdout, test.expected_stdout):
             return Status.WRONG_OUTPUT, i, f"got {proc.stdout[:200]!r}"
+        if proc.returncode != 0:  # hyperfine cannot time a program that exits non-zero
+            return Status.CRASH, i, f"exit status {proc.returncode}: {proc.stderr[-500:]}"
     return Status.OK, None, ""
+
+
+class TimingFailed(Exception):
+    """A program that passed ``test`` failed on it while being timed, i.e. it is flaky."""
+
+    def __init__(self, test: int, stderr: str) -> None:
+        super().__init__(stderr)
+        self.test = test
 
 
 def measure(exes: list[Path], tests: tuple[TestCase, ...], cfg: EvalConfig) -> dict[Path, float]:
@@ -82,18 +92,21 @@ def measure(exes: list[Path], tests: tuple[TestCase, ...], cfg: EvalConfig) -> d
     for i, test in enumerate(tests):
         stdin, report = workdir / f"test{i}.in", workdir / f"test{i}.json"
         stdin.write_text(test.stdin)
-        subprocess.run(
-            [
-                cfg.hyperfine, "--shell=none", "--style=none", "--output=null",
-                f"--input={stdin}", f"--warmup={cfg.warmup_runs}",
-                f"--runs={cfg.timing_repeats}", f"--export-json={report}",
-                *map(str, exes),
-            ],
-            capture_output=True,
-            timeout=timeout_s,
-            cwd=workdir,
-            check=True,  # it already passed these tests, so any failure here is a flaky binary
-        )
+        try:
+            subprocess.run(
+                [
+                    cfg.hyperfine, "--shell=none", "--style=none", "--output=null",
+                    f"--input={stdin}", f"--warmup={cfg.warmup_runs}",
+                    f"--runs={cfg.timing_repeats}", f"--export-json={report}",
+                    *map(str, exes),
+                ],
+                capture_output=True,
+                timeout=timeout_s,
+                cwd=workdir,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            raise TimingFailed(i, e.stderr.decode(errors="replace")[-500:]) from e
         for exe, r in zip(exes, json.loads(report.read_text())["results"], strict=True):
             totals[exe] += r["mean"]
     return totals
@@ -138,7 +151,11 @@ def evaluate(problem: Problem, gen: Generation, cfg: EvalConfig) -> EvalResult:
         if status is not Status.OK:
             return result(status, failed_test=kept[failed], detail=detail)
 
-        times = measure([base_exe, cand_exe], tests, cfg)
+        try:
+            times = measure([base_exe, cand_exe], tests, cfg)
+        except TimingFailed as e:
+            return result(Status.CRASH, failed_test=kept[e.test],
+                          detail=f"failed while timing: {e}")
         base_s, cand_s = times[base_exe], times[cand_exe]
         return result(
             Status.OK,
