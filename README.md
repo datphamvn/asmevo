@@ -14,7 +14,8 @@ llm_opt/
 └── src/asmevo/
     ├── main.py             # entry point
     ├── data/               # test set: `val` split of LLM4Code/llm_superoptimizer_ds (200 programs)
-    ├── methods/            # one folder per method, holding its flow and prompt
+    ├── methods/            # one PocketFlow flow per method (nodes.py, flow.py, prompt.py);
+    │                       #   nodes.py at this level holds the nodes they share
     ├── eval/               # build, test, and time candidates against gcc -O3
     └── utils/
         └── llm/            # LLM client interface (OpenAI-compatible endpoint)
@@ -33,8 +34,13 @@ llm:
 
 ```bash
 uv run asmevo generate --method single_call          # LLM calls; any host
+uv run asmevo generate --method refinement_loop      # LLM calls + feedback; Linux x86-64 only
 uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
 ```
+
+`refinement_loop` builds, tests, and times every candidate during `generate` and sends the
+result back to the model for `refinement_loop.rounds` LLM calls, keeping the fastest correct
+candidate. Its per-round results are stored in `generations.jsonl` under `rounds`.
 
 `generate` stops on the first failed API call; pass `--run-dir` to resume. Each run directory
 ends up with `generations.jsonl`, `results.jsonl`, and `summary.json`. Candidates that fail to

@@ -30,3 +30,6 @@ eval:
 run:
   workers: 16               # concurrent LLM calls
   output_dir: runs
+
+refinement_loop:
+  rounds: 4                 # LLM calls per problem; each candidate is built, tested, and timed

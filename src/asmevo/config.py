@@ -53,14 +53,26 @@ class RunConfig:
 
 
 @dataclass(frozen=True)
+class RefinementLoopConfig:
+    rounds: int
+
+
+@dataclass(frozen=True)
 class Config:
     dataset: DatasetConfig
     llm: LLMConfig
     eval: EvalConfig
     run: RunConfig
+    refinement_loop: RefinementLoopConfig
 
 
-_SECTIONS = {"dataset": DatasetConfig, "llm": LLMConfig, "eval": EvalConfig, "run": RunConfig}
+_SECTIONS = {
+    "dataset": DatasetConfig,
+    "llm": LLMConfig,
+    "eval": EvalConfig,
+    "run": RunConfig,
+    "refinement_loop": RefinementLoopConfig,
+}
 
 
 def _read(path: Path) -> dict[str, Any]:

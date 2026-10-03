@@ -1,6 +1,7 @@
 """Command-line entry point.
 
   uv run asmevo generate --method single_call          # LLM calls; runs on any host
+  uv run asmevo generate --method refinement_loop      # LLM calls + feedback; Linux x86-64 only
   uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
 """
 
@@ -19,16 +20,27 @@ from asmevo.config import ROOT, Config, load_config, load_dotenv
 from asmevo.data.dataset import Problem, load_test_set
 from asmevo.eval.report import summarize
 from asmevo.eval.runner import evaluate
+from asmevo.methods.refinement_loop import flow as refinement_loop
 from asmevo.methods.single_call import flow as single_call
 from asmevo.schemas import Generation
 from asmevo.utils.llm.client import OpenAICompatibleClient
 
-METHODS = {single_call.NAME: single_call.generate}
+# Each method is ``generate(problem, llm, cfg) -> Generation`` running a PocketFlow flow.
+METHODS = {
+    single_call.NAME: single_call.generate,
+    refinement_loop.NAME: refinement_loop.generate,
+}
+EXEC_METHODS = {refinement_loop.NAME}  # build/test/time candidates while generating
 
 CONFIG = "config.json"
 GENERATIONS = "generations.jsonl"
 RESULTS = "results.jsonl"
 SUMMARY = "summary.json"
+
+
+def require_x86(what: str) -> None:
+    if platform.machine().lower() not in {"x86_64", "amd64"}:
+        raise SystemExit(f"{what} needs Linux x86-64; this host is {platform.machine()}")
 
 
 def load_problems(cfg: Config, limit: int | None) -> list[Problem]:
@@ -48,6 +60,8 @@ def generate(cfg: Config, method: str, run_dir: Path) -> None:
 
     Stops at the first error; re-running on the same ``run_dir`` resumes where it stopped.
     """
+    if method in EXEC_METHODS:
+        require_x86(f"generate --method {method}")
     run_dir.mkdir(parents=True, exist_ok=True)
     snapshot = json.dumps({"method": method, "config": asdict(cfg)}, indent=2) + "\n"
     config_path = run_dir / CONFIG
@@ -64,15 +78,18 @@ def generate(cfg: Config, method: str, run_dir: Path) -> None:
     method_fn = METHODS[method]
     start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=workers) as pool, (run_dir / GENERATIONS).open("a") as f:
-        futures = [pool.submit(method_fn, p, llm) for p in todo]
+        futures = [pool.submit(method_fn, p, llm, cfg) for p in todo]
         try:
             for i, fut in enumerate(as_completed(futures), 1):
                 gen = fut.result()
                 f.write(json.dumps(asdict(gen)) + "\n")
                 f.flush()  # keep finished calls if a later one fails
                 tokens = sum(c.output_tokens for c in gen.llm_calls)
+                rounds = (f", rounds {[r.status.value for r in gen.rounds]}, "
+                          f"best speedup {max(r.speedup for r in gen.rounds):.3f}"
+                          if gen.rounds else "")
                 print(f"[generate] {i}/{len(todo)} problem {gen.problem_id}: "
-                      f"{'ok' if gen.asm else 'no asm'}, {tokens} output tokens, "
+                      f"{'ok' if gen.asm else 'no asm'}, {tokens} output tokens{rounds}, "
                       f"{time.perf_counter() - start:.0f}s elapsed")
         except BaseException:
             pool.shutdown(cancel_futures=True)
@@ -80,8 +97,7 @@ def generate(cfg: Config, method: str, run_dir: Path) -> None:
 
 
 def evaluate_run(cfg: Config, run_dir: Path) -> None:
-    if platform.machine().lower() not in {"x86_64", "amd64"}:
-        raise SystemExit(f"evaluate needs Linux x86-64; this host is {platform.machine()}")
+    require_x86("evaluate")
     gens = load_generations(run_dir)
     if not gens:
         raise SystemExit(f"no {GENERATIONS} in {run_dir}")
