@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Protocol
+
+from openai import OpenAI
 
 from asmevo.config import LLMConfig
 from asmevo.schemas import LLMCall
@@ -18,22 +21,46 @@ class LLMClient(Protocol):
 
 
 class OpenAICompatibleClient:
-    """Client for any OpenAI-compatible endpoint (OpenAI, vLLM, OpenRouter, ...).
+    """Client for an OpenAI Responses API endpoint, configured by ``LLMConfig``.
 
-    Reads ``OPENAI_API_KEY``, ``OPENAI_BASE_URL``, and ``MODEL`` from the environment.
+    Transient errors (connection, 408/409/429/5xx) are retried by the SDK with exponential
+    backoff; anything else raises. Thread-safe, so all workers share one instance.
     """
 
     def __init__(self, cfg: LLMConfig) -> None:
         self.cfg = cfg
-        self.model = os.environ.get("MODEL", cfg.model)
-        self.base_url = os.environ.get("OPENAI_BASE_URL")
-        self.api_key = os.environ.get("OPENAI_API_KEY")
+        self.client = OpenAI(
+            base_url=cfg.base_url,
+            api_key=os.environ["OPENAI_API_KEY"],
+            timeout=cfg.timeout_s,
+            max_retries=cfg.max_retries,
+        )
 
     def complete(self, messages: list[Message], *, prompt_id: str) -> tuple[str, LLMCall]:
-        """Call chat completions with ``cfg.temperature`` and ``cfg.max_output_tokens``.
+        start = time.perf_counter()
+        resp = self.client.responses.create(
+            model=self.cfg.model,
+            input=messages,
+            max_output_tokens=self.cfg.max_output_tokens,
+            reasoning={"mode": self.cfg.reasoning_mode, "effort": self.cfg.reasoning_effort},
+        )
+        latency = time.perf_counter() - start
+        if resp.usage is None:
+            raise RuntimeError(f"response {resp.id} has no usage; cannot account tokens")
 
-        Must fill ``LLMCall`` with real token usage and cost computed from
-        ``cfg.cost_per_1k_input`` / ``cfg.cost_per_1k_output``, and retry transient errors.
-        """
-        # TODO(Implement the LLM client)
-        raise NotImplementedError
+        usage = resp.usage
+        cost = (
+            usage.input_tokens * self.cfg.cost_per_1k_input
+            + usage.output_tokens * self.cfg.cost_per_1k_output
+        ) / 1000
+        call = LLMCall(
+            model=self.cfg.model,
+            prompt_id=prompt_id,
+            response_status=resp.status,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            reasoning_tokens=usage.output_tokens_details.reasoning_tokens,
+            cost_usd=cost,
+            latency_s=latency,
+        )
+        return resp.output_text, call

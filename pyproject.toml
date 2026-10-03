@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-asmevo = "asmevo.experiments.run:main"
+asmevo = "asmevo.main:main"
 
 [build-system]
 requires = ["hatchling"]

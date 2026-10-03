@@ -1,1 +1,31 @@
-# Default configuration for the search algorithm
+dataset:
+  cache_dir: data/cache
+  limit: null               # set an int to run on the first N problems only
+
+
+llm:
+  base_url: https://api.openai.com/v1
+  model: gpt-6-luna
+  reasoning_mode: standard
+  reasoning_effort: medium
+  max_output_tokens: 32768
+  timeout_s: 1800
+  max_retries: 5            # SDK retries connection errors
+  cost_per_1k_input: 0.0
+  cost_per_1k_output: 0.0
+
+# Build/test/time against the -O3 baseline (Linux x86-64 only). Keep identical across the
+# methods being compared; each run records the values it used in config.json.
+eval:
+  cc: gcc
+  link_flags: [-lm]
+  compile_timeout_s: 30
+  run_timeout_s: 10
+  memory_limit_mb: 1024
+  warmup_runs: 1
+  timing_repeats: 5
+  workers: 8                # parallel problems; each times baseline and candidate interleaved
+
+run:
+  workers: 16               # concurrent LLM calls
+  output_dir: runs
