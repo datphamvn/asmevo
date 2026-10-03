@@ -8,6 +8,7 @@ build/
 *.egg-info/
 
 .env
+configs/local.yaml
 runs/
 data/cache/
 *.o
