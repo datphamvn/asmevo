@@ -48,9 +48,10 @@ class EvalResult:
     problem_id: int
     status: Status
     speedup: float = 1.0  # the protocol scores every non-OK candidate as the -O3 baseline
-    baseline_median_s: float | None = None
-    candidate_median_s: float | None = None
+    baseline_mean_s: float | None = None
+    candidate_mean_s: float | None = None
     failed_test: int | None = None
+    dropped_tests: tuple[int, ...] = ()  # the -O3 baseline exceeds run_timeout_s on these
     detail: str = ""
 
     @property

@@ -28,6 +28,7 @@ def summarize(results: list[EvalResult], generations: list[Generation]) -> dict[
     return {
         "problems": n,
         "status_counts": dict(Counter(r.status.value for r in results)),
+        "dropped_tests": {r.problem_id: list(r.dropped_tests) for r in results if r.dropped_tests},
         "build_rate": sum(r.status not in {Status.NO_ASM, Status.BUILD_FAIL} for r in results) / n,
         "correct_rate": len(correct) / n,
         "improved_rate": sum(r.speedup > 1.0 for r in correct) / n,

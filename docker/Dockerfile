@@ -3,9 +3,13 @@ FROM --platform=linux/amd64 ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc-12 binutils libc6-dev make ca-certificates time \
+    && apt-get install -y --no-install-recommends gcc-12 binutils libc6-dev make ca-certificates time curl \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/gcc-12 /usr/local/bin/gcc
+
+ARG HYPERFINE=v1.20.0
+RUN curl -fsSL https://github.com/sharkdp/hyperfine/releases/download/${HYPERFINE}/hyperfine-${HYPERFINE}-x86_64-unknown-linux-musl.tar.gz \
+    | tar xz --strip-components=1 -C /usr/local/bin hyperfine-${HYPERFINE}-x86_64-unknown-linux-musl/hyperfine
 
 COPY --from=ghcr.io/astral-sh/uv:0.7.9 /uv /uvx /bin/
 

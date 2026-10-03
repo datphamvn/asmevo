@@ -40,6 +40,7 @@ class EvalConfig:
     compile_timeout_s: float
     run_timeout_s: float
     memory_limit_mb: int
+    hyperfine: str
     warmup_runs: int
     timing_repeats: int
     workers: int

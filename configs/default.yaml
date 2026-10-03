@@ -22,8 +22,9 @@ eval:
   compile_timeout_s: 30
   run_timeout_s: 10
   memory_limit_mb: 1024
-  warmup_runs: 1
-  timing_repeats: 5
+  hyperfine: hyperfine      # timing tool; per test input it discards 3 runs, averages 10
+  warmup_runs: 3
+  timing_repeats: 10
   workers: 8                # parallel problems; each times baseline and candidate interleaved
 
 run:
