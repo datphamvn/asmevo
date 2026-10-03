@@ -7,13 +7,22 @@ import statistics
 from collections import Counter
 from typing import Any
 
+import numpy as np
+
 from asmevo.schemas import EvalResult, Generation, Status
 
 
 def summarize(results: list[EvalResult], generations: list[Generation]) -> dict[str, Any]:
-    """Failed candidates count as 1.0x, i.e. the -O3 baseline is kept."""
+    """Failed candidates count as 1.0x, i.e. the -O3 baseline is kept.
+
+    ``avg_speedup`` and ``speedup_p*`` follow SuperCoder (arXiv:2505.11480): correct but
+    slower candidates also count as 1.0x. ``mean_speedup`` and ``geomean_speedup`` keep
+    such slowdowns.
+    """
     n = len(results)
     speedups = [r.speedup for r in results]
+    floored = [max(s, 1.0) for s in speedups]
+    p25, p50, p75 = np.percentile(floored, [25, 50, 75]).tolist()
     correct = [r for r in results if r.ok]
     calls = [c for g in generations for c in g.llm_calls]
     return {
@@ -22,6 +31,10 @@ def summarize(results: list[EvalResult], generations: list[Generation]) -> dict[
         "build_rate": sum(r.status not in {Status.NO_ASM, Status.BUILD_FAIL} for r in results) / n,
         "correct_rate": len(correct) / n,
         "improved_rate": sum(r.speedup > 1.0 for r in correct) / n,
+        "avg_speedup": statistics.fmean(floored),
+        "speedup_p25": p25,
+        "speedup_p50": p50,
+        "speedup_p75": p75,
         "mean_speedup": statistics.fmean(speedups),
         "geomean_speedup": math.exp(statistics.fmean(map(math.log, speedups))),
         "mean_speedup_correct_only": (
