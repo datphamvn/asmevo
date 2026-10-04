@@ -6,10 +6,13 @@ Each problem is a C program with its gcc -O3 x86-64 baseline assembly and stdin/
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from datasets import load_dataset
+from huggingface_hub import hf_hub_download
 
 HF_REPO = "LLM4Code/llm_superoptimizer_ds"
 HF_REVISION = "efd4d6ef011da28a83a40aa9e821d44507c7d73b"
@@ -40,21 +43,40 @@ def strip_fence(text: str) -> str:
     return m.group(1) if m else text
 
 
+def sha256_file(path: Path, chunk_size: int = 1 << 20) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        while chunk := f.read(chunk_size):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def download_test_file(
+    name: str = HF_REPO,
+    revision: str = HF_REVISION,
+    test_file: str = TEST_FILE,
+    cache_dir: str | None = "data/cache",
+) -> Path:
+    """Local path of the pinned parquet, downloaded once into ``cache_dir``."""
+    return Path(hf_hub_download(repo_id=name, filename=test_file, revision=revision,
+                                repo_type="dataset", cache_dir=cache_dir))
+
+
 def load_test_set(
     name: str = HF_REPO,
     revision: str = HF_REVISION,
     test_file: str = TEST_FILE,
     cache_dir: str | None = "data/cache",
     limit: int | None = None,
+    path: Path | None = None,
 ) -> list[Problem]:
-    ds = load_dataset(
-        name,
-        revision=revision,
-        data_files={"test": test_file},
-        split="test",
-        cache_dir=cache_dir,
-        verification_mode="no_checks",  # the card declares train/val/fewshot; we load one file
-    )
+    """Problems from ``path``, or from the pinned parquet when no path is given.
+
+    Pass the path you hashed with ``sha256_file`` so the manifest names the bytes loaded.
+    """
+    path = path or download_test_file(name, revision, test_file, cache_dir)
+    ds = load_dataset("parquet", data_files={"test": str(path)}, split="test",
+                      cache_dir=cache_dir)
     if limit is not None:
         ds = ds.select(range(min(limit, len(ds))))
 
