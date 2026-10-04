@@ -99,6 +99,18 @@ def measure(exes: list[Path], tests: tuple[TestCase, ...], cfg: EvalConfig) -> d
     return totals
 
 
+def evaluate_asm(
+    problem: Problem, asm: str | None, tests: tuple[TestCase, ...], cfg: EvalConfig
+) -> EvalResult:
+    """Build, test and time ``asm`` against ``problem.baseline_asm`` on ``tests`` only.
+
+    Shared by every search method. A broken candidate never raises: ``asm=None`` gives
+    ``NO_ASM``, and build errors, wrong output, crashes and timeouts give their ``Status``
+    with speedup 1.0. Only a broken -O3 baseline raises, as in ``evaluate``.
+    """
+    raise NotImplementedError("T12")
+
+
 def evaluate(problem: Problem, gen: Generation, cfg: EvalConfig) -> EvalResult:
     """Score ``gen`` on all of ``problem.tests``; anything but OK keeps speedup 1.0."""
 
