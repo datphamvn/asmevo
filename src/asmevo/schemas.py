@@ -26,21 +26,29 @@ class LLMCall:
     reasoning_tokens: int
     cost_usd: float
     latency_s: float
+    # The exact request and reply, so every candidate can be traced back to its prompt.
+    # Defaults keep runs recorded before these fields were added loadable.
+    messages: tuple[dict[str, str], ...] = ()
+    reply: str = ""
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> LLMCall:
+        return cls(**{**d, "messages": tuple(d.get("messages", ()))})
 
 
 @dataclass(frozen=True)
 class Generation:
-    """One method's candidate assembly for one problem."""
+    """One method's candidate assembly for one problem; replies live in ``llm_calls``."""
 
     problem_id: int
     method: str
     asm: str | None
-    reply: str
     llm_calls: tuple[LLMCall, ...]
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Generation:
-        return cls(**{**d, "llm_calls": tuple(LLMCall(**c) for c in d["llm_calls"])})
+        d = {k: v for k, v in d.items() if k != "reply"}  # runs before replies moved to LLMCall
+        return cls(**{**d, "llm_calls": tuple(LLMCall.from_dict(c) for c in d["llm_calls"])})
 
 
 @dataclass(frozen=True)

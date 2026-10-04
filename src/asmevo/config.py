@@ -22,15 +22,18 @@ class DatasetConfig:
 
 @dataclass(frozen=True)
 class LLMConfig:
+    provider: str  # a key of asmevo.utils.llm.client.PROVIDERS
     base_url: str
+    api_key_env: str  # environment variable (or .env key) holding the API key
     model: str
-    reasoning_mode: str
-    reasoning_effort: str
+    reasoning_mode: str | None
+    reasoning_effort: str | None
     max_output_tokens: int
     timeout_s: float
     max_retries: int
-    cost_per_1k_input: float
-    cost_per_1k_output: float
+    # USD per 1k tokens. null fails fast instead of silently reporting $0; use 0.0 if free.
+    cost_per_1k_input: float | None
+    cost_per_1k_output: float | None
 
 
 @dataclass(frozen=True)

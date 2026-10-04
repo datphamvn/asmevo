@@ -21,7 +21,7 @@ from asmevo.eval.report import summarize
 from asmevo.eval.runner import evaluate
 from asmevo.methods.single_call import flow as single_call
 from asmevo.schemas import Generation
-from asmevo.utils.llm.client import OpenAICompatibleClient
+from asmevo.utils.llm.client import make_client
 
 METHODS = {single_call.NAME: single_call.generate}
 
@@ -48,6 +48,7 @@ def generate(cfg: Config, method: str, run_dir: Path) -> None:
 
     Stops at the first error; re-running on the same ``run_dir`` resumes where it stopped.
     """
+    llm = make_client(cfg.llm)  # fail on a missing key or price before touching run_dir
     run_dir.mkdir(parents=True, exist_ok=True)
     snapshot = json.dumps({"method": method, "config": asdict(cfg)}, indent=2) + "\n"
     config_path = run_dir / CONFIG
@@ -60,7 +61,6 @@ def generate(cfg: Config, method: str, run_dir: Path) -> None:
     workers = cfg.run.workers
     print(f"[generate] {method}: {len(todo)} to run, {len(done)} done, {workers} workers")
 
-    llm = OpenAICompatibleClient(cfg.llm)
     method_fn = METHODS[method]
     start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=workers) as pool, (run_dir / GENERATIONS).open("a") as f:

@@ -1,0 +1,12 @@
+# FPT AI Marketplace preset: uv run asmevo --config configs/fptcloud.yaml generate ...
+# Only the keys below override configs/default.yaml. Put FPTCLOUD_API_KEY in .env.
+llm:
+  provider: fptcloud
+  base_url: https://mkp-api.fptcloud.com/v1   # https://mkp-api.fptcloud.jp/v1 for the JP region
+  api_key_env: FPTCLOUD_API_KEY
+  model: Qwen2.5-Coder-32B-Instruct           # see marketplace.fptcloud.com for current models
+  reasoning_mode: null
+  reasoning_effort: null                      # set only for models that accept it, e.g. gpt-oss
+  max_output_tokens: 8192                     # keep within the model's context window
+  cost_per_1k_input: null                     # fill in from the marketplace price list
+  cost_per_1k_output: null

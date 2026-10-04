@@ -18,6 +18,5 @@ def generate(problem: Problem, llm: LLMClient) -> Generation:
         problem_id=problem.id,
         method=NAME,
         asm=extract_asm(reply),
-        reply=reply,
         llm_calls=(call,),
     )

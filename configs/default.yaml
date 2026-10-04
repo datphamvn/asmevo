@@ -4,15 +4,17 @@ dataset:
 
 
 llm:
+  provider: openai          # openai (Responses API) | fptcloud (Chat Completions)
   base_url: https://api.openai.com/v1
+  api_key_env: OPENAI_API_KEY
   model: gpt-6-luna
-  reasoning_mode: standard
-  reasoning_effort: medium
+  reasoning_mode: standard  # Responses API only; ignored by fptcloud
+  reasoning_effort: medium  # null to omit it, e.g. for models without reasoning
   max_output_tokens: 32768
   timeout_s: 1800
   max_retries: 5            # SDK retries connection errors
-  cost_per_1k_input: 0.0
-  cost_per_1k_output: 0.0
+  cost_per_1k_input: null   # USD per 1k tokens; required (0.0 if free) so cost is never a silent $0
+  cost_per_1k_output: null
 
 # Build/test/time against the -O3 baseline (Linux x86-64 only). Keep identical across the
 # methods being compared; each run records the values it used in config.json.
