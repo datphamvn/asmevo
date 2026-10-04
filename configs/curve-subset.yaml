@@ -1,0 +1,15 @@
+# Budget-curve subset: 10 random problems (random.Random(0).sample(range(200), 10)) at the
+# k = 8 calls chosen from the configs/curve.yaml pilot.
+# Use with: uv run asmevo --config configs/curve-subset.yaml generate --method <method>
+
+dataset:
+  problem_ids: [10, 66, 77, 98, 103, 107, 122, 124, 130, 194]
+
+best_of_n:
+  n: 8
+
+refinement_loop:
+  rounds: 8
+
+policy_tree:
+  max_calls: 8

@@ -1,0 +1,9 @@
+# Full test set at k = 6 LLM calls per problem (chosen from the configs/curve.yaml pilot
+# with the pinned, balanced evaluator). Run one asmevo process at a time.
+# Use with: uv run asmevo --config configs/full-k6.yaml generate --method <method>
+
+refinement_loop:
+  rounds: 6
+
+policy_tree:
+  max_calls: 6

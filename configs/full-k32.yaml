@@ -1,0 +1,9 @@
+# Full test set at up to k = 32 LLM calls per problem; policy_tree may stop earlier
+# (policy_tree.patience). Run one asmevo process at a time.
+# Use with: uv run asmevo --config configs/full-k32.yaml generate --method <method>
+
+refinement_loop:
+  rounds: 32
+
+policy_tree:
+  max_calls: 32

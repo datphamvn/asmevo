@@ -1,0 +1,14 @@
+# Budget-curve pilot: every method gets 32 LLM calls on one problem with headroom.
+# Use with: uv run asmevo --config configs/curve.yaml generate --method <method>
+
+dataset:
+  problem_ids: [133]
+
+best_of_n:
+  n: 32
+
+refinement_loop:
+  rounds: 32
+
+policy_tree:
+  max_calls: 32
