@@ -141,10 +141,14 @@ Refactor `eval/runner.py`:
 - [ ] Đo xen kẽ thật sự: chạy nhiều vòng và đổi thứ tự baseline/candidate giữa các vòng. Trả về median và stddev, không chỉ mean.
 - **DoD:** một file assembly lỗi, crash hoặc lặp vô hạn chỉ làm hỏng đúng candidate đó, và process cha vẫn chạy tiếp.
 
-**T3 · Implement budget tracking** · P0 · ⬜
-- [ ] `search/budget.py`: class `Budget` tính phí mỗi lần sinh candidate (gồm cả repair và candidate lỗi), tối đa `search.max_candidates = 12`.
-- [ ] Khi hết budget, gọi thêm sẽ raise `BudgetExhausted`. Ghi tổng token và cost thực tế vào `SearchTrace`.
+**T3 · Implement budget tracking** · P0 · ✅
+- [x] `search/budget.py`: class `Budget` tính phí mỗi lần sinh candidate (gồm cả repair và candidate lỗi), tối đa `search.max_candidates = 12`.
+- [x] Khi hết budget, gọi thêm sẽ raise `BudgetExhausted`. Ghi tổng token và cost thực tế vào `SearchTrace`.
 - **DoD:** không method nào gọi LLM được quá 12 lần cho một (problem, seed). Có test kiểm tra điều này trong T4.
+- **Cho T10, T14, T15, T16:**
+  - `Budget.guard(llm)`: T16 truyền `budget.guard(llm)` vào `search(...)`. Gọi LLM khi chưa `charge()` sẽ raise, nên DoD được bảo đảm ngay ở runner chứ không phụ thuộc từng method.
+  - `Budget.check_trace(trace)`: T16 gọi sau mỗi lần search. Nó raise nếu trace thiếu hoặc lặp một call đã gọi, nên tổng token và cost của `SearchTrace` là số thật.
+  - `charge()` thread-safe, sinh offspring song song được. Unit test nằm ở `tests/test_budget.py`.
 
 **T9 · Implement mutation prompts and feedback** · P0 · ⬜
 - [ ] `methods/common/prompt.py` (dùng chung) gồm:
