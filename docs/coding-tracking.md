@@ -32,7 +32,7 @@ và **priority**.
 
 ```mermaid
 graph LR
-  T1[T1 Init ✅] --> T2[T2 Schemas]
+  T1[T1 Init ✅] --> T2[T2 Schemas ✅]
   T1 --> T5[T5 Loader/manifest]
   T1 --> T7[T7 GCC baseline]
   T5 --> T6[T6 Splits]
@@ -74,14 +74,14 @@ graph LR
 |---|---|---|---|---|---|---|---|
 | 0 | T1 | Initialize the codebase | — | ✅ | pvtd2003@gmail.com | — | T2, T5, T7 |
 | 0 | T8 | Implement the LLM client | — | ✅ | huynhvancuong20@gmail.com | — | T9 |
-| 1 | **T2** | Define schemas and interfaces | **P0** | 🟡 | | T1 | T3, T9, T11, T12 |
+| 1 | **T2** | Define schemas and interfaces | **P0** | ✅ | anhth.fuhn@gmail.com | T1 | T3, T9, T11, T12 |
 | 1 | T5 | Implement the loader and manifest | P1 | 🟡 | | T1 | T6, T16 |
 | 1 | T7 | Build the GCC baseline for ≥ 2 tasks | P2 | 🟡 | | T1 | — |
 | 1 | — | Sửa lỗi nhỏ (F1–F3, xem cuối file) | P1 | ⬜ | | — | — |
-| 2 | **T12** | Implement an isolated runner | **P0** | ⛔ | | T2 | T10, T13, T14, T15 |
-| 2 | T3 | Implement budget tracking | P0 | ⛔ | | T2 | T4, T10, T14, T15 |
-| 2 | T9 | Implement mutation prompts and feedback | P0 | ⛔ | huynhvancuong20@gmail.com | T2, T8 | T10, T14, T15 |
-| 2 | T11 | Implement selection, elitism, and deduplication | P0 | ⛔ | | T2 | T4, T10 |
+| 2 | **T12** | Implement an isolated runner | **P0** | ⬜ | | T2 | T10, T13, T14, T15 |
+| 2 | T3 | Implement budget tracking | P0 | ⬜ | | T2 | T4, T10, T14, T15 |
+| 2 | T9 | Implement mutation prompts and feedback | P0 | ⬜ | huynhvancuong20@gmail.com | T2, T8 | T10, T14, T15 |
+| 2 | T11 | Implement selection, elitism, and deduplication | P0 | ⬜ | | T2 | T4, T10 |
 | 2 | T6 | Implement dataset splits | P1 | ⛔ | | T5 | T13, T16 |
 | 3 | **T10** | Implement the population model and candidate mutation | **P0** | ⛔ | | T3, T9, T11, T12 | T4, T16 |
 | 3 | T14 | Implement best-of-N | P0 | ⛔ | | T3, T9, T12 | T16 |
@@ -109,12 +109,11 @@ Ghi chú: commit đầu tiên ngày 29/09, plan yêu cầu 19/09.
 
 ### Wave 1 — làm ngay
 
-**T2 · Define schemas and interfaces** · P0 · 🟡
-Hiện có `LLMCall`, `Generation`, `EvalResult` và `Status`. Còn thiếu:
-- [ ] `Candidate` và `SearchTrace` trong `schemas.py` (xem [Interface contracts](#interface-contracts)).
-- [ ] Protocol `SearchMethod` dùng chung cho `best_of_n`, `refine` và `evolution`.
-- [ ] Section `search:` và `split:` trong `configs/default.yaml` cùng dataclass tương ứng trong `config.py`.
-- [ ] Stub `evaluate_asm(...)` có chữ ký cố định để T12 implement.
+**T2 · Define schemas and interfaces** · P0 · ✅
+- [x] `Candidate` và `SearchTrace` trong `schemas.py` (xem [Interface contracts](#interface-contracts)), kèm `from_dict` để đọc lại trace.
+- [x] Protocol `SearchMethod` dùng chung cho `best_of_n`, `refine` và `evolution` (`methods/base.py`).
+- [x] Section `search:` và `split:` trong `configs/default.yaml` cùng `SearchConfig`/`SplitConfig` trong `config.py`.
+- [x] Stub `evaluate_asm(...)` (T12) và `Budget`/`BudgetExhausted` (T3) có chữ ký cố định.
 - **DoD:** merge được interface (có thể kèm stub `NotImplementedError`) để T3, T9, T11 và T12 bắt đầu song song.
 
 **T5 · Implement the loader and manifest** · P1 · 🟡
@@ -131,7 +130,7 @@ Hiện chỉ assemble `baseline_asm` có sẵn trong dataset. Còn thiếu:
 
 ### Wave 2 — sau khi T2 merge
 
-**T12 · Implement an isolated runner** · P0 · ⛔ T2
+**T12 · Implement an isolated runner** · P0 · ⬜
 Refactor `eval/runner.py`:
 - [ ] Tách hàm `evaluate_asm(problem, asm, tests, cfg) -> EvalResult` không phụ thuộc `Generation`, để cả 3 method gọi chung.
 - [ ] Cache kết quả build và test của baseline theo từng problem, tránh build lại cho mỗi candidate.
@@ -140,12 +139,12 @@ Refactor `eval/runner.py`:
 - [ ] Đo xen kẽ thật sự: chạy nhiều vòng và đổi thứ tự baseline/candidate giữa các vòng. Trả về median và stddev, không chỉ mean.
 - **DoD:** một file assembly lỗi, crash hoặc lặp vô hạn chỉ làm hỏng đúng candidate đó, và process cha vẫn chạy tiếp.
 
-**T3 · Implement budget tracking** · P0 · ⛔ T2
+**T3 · Implement budget tracking** · P0 · ⬜
 - [ ] `search/budget.py`: class `Budget` tính phí mỗi lần sinh candidate (gồm cả repair và candidate lỗi), tối đa `search.max_candidates = 12`.
 - [ ] Khi hết budget, gọi thêm sẽ raise `BudgetExhausted`. Ghi tổng token và cost thực tế vào `SearchTrace`.
 - **DoD:** không method nào gọi LLM được quá 12 lần cho một (problem, seed). Có test kiểm tra điều này trong T4.
 
-**T9 · Implement mutation prompts and feedback** · P0 · ⛔ T2
+**T9 · Implement mutation prompts and feedback** · P0 · ⬜
 - [ ] `methods/common/prompt.py` (dùng chung) gồm:
   - prompt khởi tạo: C code, assembly của parent và ràng buộc ABI (System V AMD64, callee-saved registers, căn stack 16 byte, giữ nguyên symbol, `main` và hành vi I/O);
   - prompt mutation: thêm feedback của parent.
@@ -153,7 +152,7 @@ Refactor `eval/runner.py`:
 - [ ] Mỗi prompt có `prompt_id` riêng để truy vết.
 - **DoD:** cả prompt lẫn feedback không bao giờ chứa held-out input. T6 cung cấp ranh giới split.
 
-**T11 · Implement selection, elitism, and deduplication** · P0 · ⛔ T2
+**T11 · Implement selection, elitism, and deduplication** · P0 · ⬜
 - [ ] `search/selection.py` gồm `tournament(pop, k, rng)`, `survive(pop, offspring, size=4)` (luôn giữ baseline, rồi chọn các candidate hợp lệ tốt nhất) và `asm_hash(asm)` (bỏ comment, khoảng trắng và directive không ảnh hưởng code).
 - [ ] Candidate có fitness = −inf không bao giờ được chọn làm parent.
 - **DoD:** chỉ gồm hàm thuần, chạy deterministic khi cùng `rng`, và có unit test trong T4.
@@ -207,10 +206,12 @@ Refactor `eval/runner.py`:
 
 ## Interface contracts
 
-T2 chốt các giao diện dưới đây; các task khác code dựa trên chúng. Tên field có thể chỉnh trong PR của T2, nhưng sau khi merge thì không đổi nữa.
+T2 đã chốt các giao diện dưới đây; các task khác code dựa trên chúng. Muốn đổi thì báo nhóm trước.
 
 ```python
 # schemas.py
+def candidate_id(problem_id: int, method: str, seed: int, n: int) -> str: ...  # n = 0 là baseline
+
 @dataclass(frozen=True)
 class Candidate:
     id: str                      # f"{problem_id}-{method}-s{seed}-{n}"
@@ -226,6 +227,7 @@ class Candidate:
     fitness: float               # T_baseline / T_candidate; -inf nếu không hợp lệ
     feedback: str                # đưa vào prompt kế tiếp
     llm_calls: tuple[LLMCall, ...]
+    valid: bool                  # property: fitness != -inf
 
 @dataclass(frozen=True)
 class SearchTrace:
@@ -236,19 +238,23 @@ class SearchTrace:
     selected_id: str                    # candidate tốt nhất trên search_tests
     final: EvalResult                   # sau final check trên held-out (T13)
     fallback: bool
+    # property: selected, llm_calls, total_cost_usd, total_output_tokens
+    # Candidate/SearchTrace/EvalResult đều có from_dict để đọc lại từ JSONL
 
 # eval/runner.py (T12)
 def evaluate_asm(problem: Problem, asm: str | None,
                  tests: tuple[TestCase, ...], cfg: EvalConfig) -> EvalResult: ...
 
 # search/budget.py (T3)
+class BudgetExhausted(Exception): ...
 class Budget:
     def __init__(self, max_candidates: int = 12) -> None: ...
     def charge(self) -> None: ...        # raise BudgetExhausted khi vượt
     @property
     def remaining(self) -> int: ...
 
-# methods/<name>/flow.py (T10, T14, T15)
+# methods/base.py: Protocol SearchMethod có đúng chữ ký của search(...) dưới đây
+# methods/<name>/flow.py (T10, T14, T15): NAME: str và search: SearchMethod
 def search(problem: Problem, llm: LLMClient, cfg: Config,
            budget: Budget, rng: random.Random) -> SearchTrace: ...
 ```
@@ -282,7 +288,7 @@ split:
 |---|---|---|
 | pvtd2003@gmail.com | T1 | 5 |
 | huynhvancuong20@gmail.com | T8, T9, T17 | 0 |
-| anhth.fuhn@gmail.com | | 0 |
+| anhth.fuhn@gmail.com | T2 | 4 |
 | | | |
 
 Đếm commit bằng lệnh `git shortlog -sne --all`.
