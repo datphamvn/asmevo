@@ -66,6 +66,13 @@ def load_generations(run_dir: Path) -> dict[int, Generation]:
     return {g.problem_id: g for g in gens}
 
 
+def check_in_manifest(run_dir: Path, gen_ids: set[int], problems: list[Problem]) -> None:
+    extra = sorted(gen_ids - {p.id for p in problems})
+    if extra:
+        raise SystemExit(f"{run_dir} has generations for problems {extra} that are not in "
+                         f"its {MANIFEST}")
+
+
 def generate(cfg: Config, method: str, run_dir: Path, source: Path | None = None) -> None:
     """Run ``method`` on every problem with ``cfg.run.workers`` concurrent LLM calls.
 
@@ -93,6 +100,7 @@ def generate(cfg: Config, method: str, run_dir: Path, source: Path | None = None
         raise SystemExit(str(e)) from None
 
     done = load_generations(run_dir)
+    check_in_manifest(run_dir, set(done), problems)
     todo = [p for p in problems if p.id not in done]
     workers = cfg.run.workers
     print(f"[generate] {method}: {len(todo)} to run, {len(done)} done, {workers} workers")
@@ -122,9 +130,11 @@ def evaluate_run(cfg: Config, run_dir: Path) -> None:
     if not gens:
         raise SystemExit(f"no {GENERATIONS} in {run_dir}")
     manifest = read_manifest(run_dir) if (run_dir / MANIFEST).exists() else None
-    problems = [p for p in load_problems(cfg, None, manifest)[0] if p.id in gens]
+    problems, _ = load_problems(cfg, None, manifest)
     if manifest:
+        check_in_manifest(run_dir, set(gens), problems)
         record_evaluate(run_dir, cfg)
+    problems = [p for p in problems if p.id in gens]
     workers = cfg.eval.workers
     print(f"[evaluate] {len(problems)} problems, {workers} workers")
 
