@@ -14,7 +14,8 @@ llm_opt/
 └── src/asmevo/
     ├── main.py             # entry point
     ├── data/               # test set: `val` split of LLM4Code/llm_superoptimizer_ds (200 programs)
-    ├── methods/            # one folder per method, holding its flow and prompt
+    ├── methods/            # one PocketFlow flow per method (nodes.py, flow.py, prompt.py);
+    │                       #   nodes.py at this level holds the nodes they share
     ├── eval/               # build, test, and time candidates against gcc -O3
     └── utils/
         └── llm/            # LLM client interface (OpenAI-compatible endpoint)
@@ -33,8 +34,20 @@ llm:
 
 ```bash
 uv run asmevo generate --method single_call          # LLM calls; any host
+uv run asmevo generate --method policy_tree          # tree search; Linux x86-64 only
 uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
+uv run asmevo curve runs/<run-a> runs/<run-b>        # best result within the first k calls
 ```
+
+`--config FILE` applies on top of `configs/local.yaml`, e.g. to set `dataset.problem_ids` or a
+method's budget for one experiment.
+
+`policy_tree` searches a tree of complete programs rooted at the -O3 baseline. After each
+candidate is built, tested, and timed, a hand-written policy expands it (refine, or repair if
+broken), branches to a sibling with a new strategy hint, backtracks to the best node with room,
+or terminates after `policy_tree.patience` calls without a new best. It keeps the fastest
+correct candidate. `curve` re-scores, for each k, what each run would have returned after its
+first k calls, and plots speedup against calls.
 
 `generate` stops on the first failed API call; pass `--run-dir` to resume. Each run directory
 ends up with `generations.jsonl`, `results.jsonl`, and `summary.json`. Candidates that fail to
