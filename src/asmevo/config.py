@@ -44,6 +44,9 @@ class EvalConfig:
     hyperfine: str
     warmup_runs: int
     timing_repeats: int
+    timing_stat: str
+    balanced_order: bool
+    pin_cpus: bool
     workers: int
 
 

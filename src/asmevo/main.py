@@ -23,7 +23,7 @@ from asmevo.config import ROOT, Config, load_config, load_dotenv
 from asmevo.data.dataset import Problem, load_test_set
 from asmevo.eval.curve import budget_curve, plot_curves
 from asmevo.eval.report import summarize
-from asmevo.eval.runner import evaluate
+from asmevo.eval.runner import evaluate, pin_work_cpus
 from asmevo.methods.best_of_n import flow as best_of_n
 from asmevo.methods.policy_tree import flow as policy_tree
 from asmevo.methods.refinement_loop import flow as refinement_loop
@@ -187,6 +187,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     load_dotenv()
     cfg = load_config(args.config)
+    if cfg.eval.pin_cpus:
+        pin_work_cpus()
 
     if args.command == "generate":
         run_dir = args.run_dir or (

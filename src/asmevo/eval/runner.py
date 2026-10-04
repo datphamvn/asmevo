@@ -5,10 +5,16 @@ Must run on Linux x86-64 (natively or in the docker image): the dataset assembly
 
 from __future__ import annotations
 
+import functools
 import json
 import math
+import os
+import queue
+import statistics
 import subprocess
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from asmevo.config import EvalConfig
@@ -79,36 +85,104 @@ class TimingFailed(Exception):
         self.test = test
 
 
+def _cpu_list(text: str) -> list[int]:
+    cpus = []
+    for part in text.strip().split(","):
+        lo, _, hi = part.partition("-")
+        cpus.extend(range(int(lo), int(hi or lo) + 1))
+    return cpus
+
+
+@functools.cache
+def cpu_layout() -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """``(timing, work)`` CPUs: one hardware thread per performance core times programs, alone
+    on its core; everything else runs on the remaining cores.
+
+    On a hybrid CPU the efficiency cores do the work; otherwise half the cores are kept for
+    timing. Read once, before ``pin_work_cpus`` narrows this process's affinity.
+    """
+    allowed = set(os.sched_getaffinity(0))
+    sysfs = Path("/sys/devices/system/cpu")
+    p_cores = Path("/sys/devices/cpu_core/cpus")
+    fast = set(_cpu_list(p_cores.read_text())) & allowed if p_cores.exists() else allowed
+    cores = sorted({tuple(_cpu_list((sysfs / f"cpu{c}/topology/thread_siblings_list")
+                                    .read_text())) for c in fast})
+    if not allowed - fast:
+        cores = cores[: max(1, len(cores) // 2)]
+    timing = tuple(sorted(core[0] for core in cores))
+    work = tuple(sorted(allowed - {c for core in cores for c in core}))
+    return timing, work or tuple(sorted(allowed - set(timing)))
+
+
+def pin_work_cpus() -> None:
+    """Keep this thread, the threads it starts, and their subprocesses off the timing CPUs."""
+    os.sched_setaffinity(0, cpu_layout()[1])
+
+
+@functools.cache
+def _timing_slots() -> queue.Queue[int]:
+    slots: queue.Queue[int] = queue.Queue()
+    for cpu in cpu_layout()[0]:
+        slots.put(cpu)
+    return slots
+
+
+@contextmanager
+def _timing_cpu(cfg: EvalConfig) -> Iterator[list[str]]:
+    """Command prefix that runs hyperfine alone on a free timing CPU, waiting for one."""
+    if not cfg.pin_cpus:
+        yield []
+        return
+    cpu = _timing_slots().get()
+    try:
+        yield ["taskset", "-c", str(cpu)]
+    finally:
+        _timing_slots().put(cpu)
+
+
 def measure(exes: list[Path], tests: tuple[TestCase, ...], cfg: EvalConfig) -> dict[Path, float]:
     """Execution time over ``tests`` per executable, as in SuperCoder (arXiv:2505.11480).
 
-    For each test input, hyperfine discards ``cfg.warmup_runs`` runs and averages the next
-    ``cfg.timing_repeats``; a program's time is the sum of those means over all tests.
+    For each test input, hyperfine discards ``cfg.warmup_runs`` runs and then times
+    ``cfg.timing_repeats`` runs; a program's time is the sum over tests of their
+    ``cfg.timing_stat``. With ``cfg.balanced_order`` the programs run in ABBA blocks of half
+    the runs each after one discarded block: the first block of every hyperfine call runs a few
+    percent slow, so it must not count, and ABBA cancels any drift across the rest.
     """
     workdir = exes[0].parent
     totals = dict.fromkeys(exes, 0.0)
+    order = [*exes, *reversed(exes)] if cfg.balanced_order else exes
+    runs = math.ceil(cfg.timing_repeats * len(exes) / len(order))
+    if cfg.balanced_order:
+        order = [exes[0], *order]
+    discard = 1 if cfg.balanced_order else 0
+    stat = {"mean": statistics.fmean, "median": statistics.median}[cfg.timing_stat]
     # hyperfine has no per-run timeout, so bound the whole call instead.
-    timeout_s = (cfg.warmup_runs + cfg.timing_repeats) * cfg.run_timeout_s * len(exes)
-    for i, test in enumerate(tests):
-        stdin, report = workdir / f"test{i}.in", workdir / f"test{i}.json"
-        stdin.write_text(test.stdin)
-        try:
-            subprocess.run(
-                [
-                    cfg.hyperfine, "--shell=none", "--style=none", "--output=null",
-                    f"--input={stdin}", f"--warmup={cfg.warmup_runs}",
-                    f"--runs={cfg.timing_repeats}", f"--export-json={report}",
-                    *map(str, exes),
-                ],
-                capture_output=True,
-                timeout=timeout_s,
-                cwd=workdir,
-                check=True,
-            )
-        except subprocess.CalledProcessError as e:
-            raise TimingFailed(i, e.stderr.decode(errors="replace")[-500:]) from e
-        for exe, r in zip(exes, json.loads(report.read_text())["results"], strict=True):
-            totals[exe] += r["mean"]
+    timeout_s = (cfg.warmup_runs + runs) * cfg.run_timeout_s * len(order)
+    with _timing_cpu(cfg) as prefix:
+        for i, test in enumerate(tests):
+            stdin, report = workdir / f"test{i}.in", workdir / f"test{i}.json"
+            stdin.write_text(test.stdin)
+            try:
+                subprocess.run(
+                    [
+                        *prefix, cfg.hyperfine, "--shell=none", "--style=none",
+                        "--output=null", f"--input={stdin}", f"--warmup={cfg.warmup_runs}",
+                        f"--runs={runs}", f"--export-json={report}", *map(str, order),
+                    ],
+                    capture_output=True,
+                    timeout=timeout_s,
+                    cwd=workdir,
+                    check=True,
+                )
+            except subprocess.CalledProcessError as e:
+                raise TimingFailed(i, e.stderr.decode(errors="replace")[-500:]) from e
+            times: dict[Path, list[float]] = {exe: [] for exe in exes}
+            results = json.loads(report.read_text())["results"]
+            for exe, r in zip(order[discard:], results[discard:], strict=True):
+                times[exe].extend(r["times"])
+            for exe in exes:
+                totals[exe] += stat(times[exe])
     return totals
 
 
