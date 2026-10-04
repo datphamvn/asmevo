@@ -1,4 +1,5 @@
 import hashlib
+import json
 from dataclasses import replace
 
 import pytest
@@ -134,6 +135,12 @@ def test_generate_reuses_manifest(tmp_path, fake_generate):
     assert b["problem_ids"] == [0, 1, 2]
     assert len(main.load_generations(tmp_path / "b")) == 3
 
+    # A hand-edited manifest that drops problems the run already generated.
+    edited = {**read_manifest(tmp_path / "a"), "problem_ids": [0], "splits": {"all": [0]}}
+    (tmp_path / "a" / m.MANIFEST).write_text(json.dumps(edited))
+    with pytest.raises(SystemExit, match=r"\[1, 2\]"):
+        main.generate(cfg_3, "single_call", tmp_path / "a")
+
     state["sha"] = "b" * 64
     with pytest.raises(SystemExit, match="SHA-256"):
-        main.generate(cfg_3, "single_call", tmp_path / "a")
+        main.generate(cfg, "single_call", tmp_path / "b")
