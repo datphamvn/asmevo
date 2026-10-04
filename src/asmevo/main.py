@@ -2,6 +2,7 @@
 
   uv run asmevo generate --method single_call          # LLM calls; runs on any host
   uv run asmevo generate --method best_of_n            # n samples, keep best; Linux x86-64 only
+  uv run asmevo generate --method refinement_loop      # LLM calls + feedback; Linux x86-64 only
   uv run asmevo generate --method policy_tree          # tree search; Linux x86-64 only
   uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
   uv run asmevo curve runs/policy_tree-<timestamp>     # best of the first k calls; x86-64 only
@@ -25,6 +26,7 @@ from asmevo.eval.report import summarize
 from asmevo.eval.runner import evaluate
 from asmevo.methods.best_of_n import flow as best_of_n
 from asmevo.methods.policy_tree import flow as policy_tree
+from asmevo.methods.refinement_loop import flow as refinement_loop
 from asmevo.methods.single_call import flow as single_call
 from asmevo.schemas import Generation
 from asmevo.utils.llm.client import OpenAICompatibleClient
@@ -33,9 +35,11 @@ from asmevo.utils.llm.client import OpenAICompatibleClient
 METHODS = {
     single_call.NAME: single_call.generate,
     best_of_n.NAME: best_of_n.generate,
+    refinement_loop.NAME: refinement_loop.generate,
     policy_tree.NAME: policy_tree.generate,
 }
-EXEC_METHODS = {best_of_n.NAME, policy_tree.NAME}  # build/test/time candidates while generating
+# build/test/time candidates while generating
+EXEC_METHODS = {best_of_n.NAME, refinement_loop.NAME, policy_tree.NAME}
 
 CONFIG = "config.json"
 GENERATIONS = "generations.jsonl"

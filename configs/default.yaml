@@ -35,6 +35,9 @@ run:
 best_of_n:
   n: 4                      # independent samples per problem; each is built, tested, and timed
 
+refinement_loop:
+  rounds: 4                 # LLM calls per problem; each candidate is built, tested, and timed
+
 policy_tree:
   max_calls: 32             # LLM calls per problem at most; each candidate is built/tested/timed
   max_children: 4           # children per node

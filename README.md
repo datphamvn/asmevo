@@ -35,10 +35,15 @@ llm:
 ```bash
 uv run asmevo generate --method single_call          # LLM calls; any host
 uv run asmevo generate --method best_of_n            # n samples, keep best; Linux x86-64 only
+uv run asmevo generate --method refinement_loop      # LLM calls + feedback; Linux x86-64 only
 uv run asmevo generate --method policy_tree          # tree search; Linux x86-64 only
 uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
 uv run asmevo curve runs/<run-a> runs/<run-b>        # best result within the first k calls
 ```
+
+`refinement_loop` builds, tests, and times every candidate during `generate` and sends the
+result back to the model for `refinement_loop.rounds` LLM calls, keeping the fastest correct
+candidate. Its per-round results are stored in `generations.jsonl` under `rounds`.
 
 `best_of_n` sends the `single_call` prompt `best_of_n.n` times independently, builds, tests,
 and times every sample during `generate`, and keeps the fastest correct one. Its per-sample

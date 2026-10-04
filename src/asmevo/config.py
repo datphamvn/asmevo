@@ -59,6 +59,11 @@ class BestOfNConfig:
 
 
 @dataclass(frozen=True)
+class RefinementLoopConfig:
+    rounds: int
+
+
+@dataclass(frozen=True)
 class PolicyTreeConfig:
     max_calls: int
     max_children: int
@@ -74,6 +79,7 @@ class Config:
     eval: EvalConfig
     run: RunConfig
     best_of_n: BestOfNConfig
+    refinement_loop: RefinementLoopConfig
     policy_tree: PolicyTreeConfig
 
 
@@ -83,6 +89,7 @@ _SECTIONS = {
     "eval": EvalConfig,
     "run": RunConfig,
     "best_of_n": BestOfNConfig,
+    "refinement_loop": RefinementLoopConfig,
     "policy_tree": PolicyTreeConfig,
 }
 
