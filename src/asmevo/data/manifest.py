@@ -43,6 +43,10 @@ def git_commit(repo: Path = ROOT) -> dict[str, Any] | None:
         return None
 
 
+def toolchain(cfg: Config) -> dict[str, str | None]:
+    return {"cc": tool_version(cfg.eval.cc), "hyperfine": tool_version(cfg.eval.hyperfine)}
+
+
 def build_manifest(
     problems: Sequence[Problem],
     *,
@@ -61,8 +65,7 @@ def build_manifest(
         "splits": splits if splits is not None else {"all": ids},
         "split_seed": cfg.split.seed,
         "seed": seed,
-        "toolchain": {"cc": tool_version(cfg.eval.cc),
-                      "hyperfine": tool_version(cfg.eval.hyperfine)},
+        "toolchain": toolchain(cfg),
         "git": git_commit(),
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     }
@@ -107,3 +110,11 @@ def select_problems(problems: Sequence[Problem], manifest: dict[str, Any],
     if missing:
         raise ValueError(f"problems {missing} from the manifest are not in the dataset")
     return [by_id[i] for i in manifest["problem_ids"]]
+
+
+def record_evaluate(run_dir: Path, cfg: Config) -> None:
+    """Add the toolchain ``evaluate`` runs with, which may differ from the generate host's."""
+    manifest = read_manifest(run_dir)
+    manifest["evaluate"] = {"toolchain": toolchain(cfg),
+                            "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    (run_dir / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n")

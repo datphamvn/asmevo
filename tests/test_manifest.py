@@ -1,4 +1,5 @@
 import hashlib
+from dataclasses import replace
 
 import pytest
 
@@ -90,3 +91,49 @@ def test_select_problems_rejects_other_dataset(problems, manifest):
 def test_select_problems_rejects_missing_id(problems, manifest):
     with pytest.raises(ValueError, match=r"\[2\]"):
         select_problems(problems[:2], manifest, SHA)
+
+
+def test_record_evaluate(tmp_path, manifest, monkeypatch):
+    write_manifest(tmp_path, manifest)
+    monkeypatch.setattr(m, "tool_version", lambda cmd: f"{cmd} 12.3")
+    m.record_evaluate(tmp_path, load_config())
+    out = read_manifest(tmp_path)
+    assert out["evaluate"]["toolchain"] == {"cc": "gcc 12.3", "hyperfine": "hyperfine 12.3"}
+    assert {k: out[k] for k in m.REPRODUCIBLE} == {k: manifest[k] for k in m.REPRODUCIBLE}
+
+
+@pytest.fixture
+def fake_generate(monkeypatch):
+    """``main.generate`` with a fake parquet of 5 problems and an LLM that returns no asm."""
+    from asmevo import main
+    from asmevo.schemas import Generation
+
+    state = {"sha": SHA}
+    monkeypatch.setattr(m, "tool_version", lambda cmd: None)
+    monkeypatch.setattr(main, "make_client", lambda cfg: None)
+    monkeypatch.setattr(main, "download_test_file", lambda cache_dir: "parquet")
+    monkeypatch.setattr(main, "sha256_file", lambda path: state["sha"])
+    monkeypatch.setattr(main, "load_test_set", lambda cache_dir, path, limit=None:
+                        [make_problem(i) for i in range(5)][:limit])
+    monkeypatch.setitem(main.METHODS, "single_call",
+                        lambda p, llm: Generation(p.id, "single_call", None, ()))
+    return main, state
+
+
+def test_generate_reuses_manifest(tmp_path, fake_generate):
+    main, state = fake_generate
+    cfg = load_config()
+    cfg_3 = replace(cfg, dataset=replace(cfg.dataset, limit=3))
+    main.generate(cfg_3, "single_call", tmp_path / "a")
+    assert read_manifest(tmp_path / "a")["problem_ids"] == [0, 1, 2]
+    main.generate(cfg_3, "single_call", tmp_path / "a")  # resume
+
+    # Another limit, same manifest: same problems.
+    main.generate(cfg, "single_call", tmp_path / "b", tmp_path / "a" / m.MANIFEST)
+    b = read_manifest(tmp_path / "b")
+    assert b["problem_ids"] == [0, 1, 2]
+    assert len(main.load_generations(tmp_path / "b")) == 3
+
+    state["sha"] = "b" * 64
+    with pytest.raises(SystemExit, match="SHA-256"):
+        main.generate(cfg_3, "single_call", tmp_path / "a")

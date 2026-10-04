@@ -16,7 +16,16 @@ from dataclasses import asdict
 from pathlib import Path
 
 from asmevo.config import ROOT, Config, load_config, load_dotenv
-from asmevo.data.dataset import Problem, load_test_set
+from asmevo.data.dataset import Problem, download_test_file, load_test_set, sha256_file
+from asmevo.data.manifest import (
+    MANIFEST,
+    REPRODUCIBLE,
+    build_manifest,
+    read_manifest,
+    record_evaluate,
+    select_problems,
+    write_manifest,
+)
 from asmevo.eval.report import summarize
 from asmevo.eval.runner import evaluate
 from asmevo.methods.single_call import flow as single_call
@@ -31,8 +40,22 @@ RESULTS = "results.jsonl"
 SUMMARY = "summary.json"
 
 
-def load_problems(cfg: Config, limit: int | None) -> list[Problem]:
-    return load_test_set(cache_dir=str(ROOT / cfg.dataset.cache_dir), limit=limit)
+def load_problems(cfg: Config, limit: int | None,
+                  manifest: dict | None = None) -> tuple[list[Problem], str]:
+    """Problems and the SHA-256 of the parquet they came from.
+
+    With a manifest, ``limit`` is ignored: the manifest's problems are returned in its order,
+    after checking that the parquet is byte-identical to the one it was made from.
+    """
+    cache_dir = str(ROOT / cfg.dataset.cache_dir)
+    path = download_test_file(cache_dir=cache_dir)
+    sha = sha256_file(path)
+    if manifest is None:
+        return load_test_set(cache_dir=cache_dir, limit=limit, path=path), sha
+    try:
+        return select_problems(load_test_set(cache_dir=cache_dir, path=path), manifest, sha), sha
+    except ValueError as e:
+        raise SystemExit(str(e)) from None
 
 
 def load_generations(run_dir: Path) -> dict[int, Generation]:
@@ -43,10 +66,11 @@ def load_generations(run_dir: Path) -> dict[int, Generation]:
     return {g.problem_id: g for g in gens}
 
 
-def generate(cfg: Config, method: str, run_dir: Path) -> None:
+def generate(cfg: Config, method: str, run_dir: Path, source: Path | None = None) -> None:
     """Run ``method`` on every problem with ``cfg.run.workers`` concurrent LLM calls.
 
     Stops at the first error; re-running on the same ``run_dir`` resumes where it stopped.
+    ``source`` (an earlier run's manifest or run dir) fixes the problems and splits to use.
     """
     llm = make_client(cfg.llm)  # fail on a missing key or price before touching run_dir
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -56,8 +80,20 @@ def generate(cfg: Config, method: str, run_dir: Path) -> None:
         raise SystemExit(f"{run_dir} was started with a different method or config")
     config_path.write_text(snapshot)
 
+    if source is None and (run_dir / MANIFEST).exists():
+        source = run_dir
+    base = read_manifest(source) if source else None
+    problems, sha = load_problems(cfg, cfg.dataset.limit, base)
+    manifest = build_manifest(problems, dataset_sha256=sha, cfg=cfg, seed=None)
+    if base:
+        manifest.update({k: base[k] for k in REPRODUCIBLE})
+    try:
+        write_manifest(run_dir, manifest)
+    except ValueError as e:
+        raise SystemExit(str(e)) from None
+
     done = load_generations(run_dir)
-    todo = [p for p in load_problems(cfg, cfg.dataset.limit) if p.id not in done]
+    todo = [p for p in problems if p.id not in done]
     workers = cfg.run.workers
     print(f"[generate] {method}: {len(todo)} to run, {len(done)} done, {workers} workers")
 
@@ -85,7 +121,10 @@ def evaluate_run(cfg: Config, run_dir: Path) -> None:
     gens = load_generations(run_dir)
     if not gens:
         raise SystemExit(f"no {GENERATIONS} in {run_dir}")
-    problems = [p for p in load_problems(cfg, None) if p.id in gens]
+    manifest = read_manifest(run_dir) if (run_dir / MANIFEST).exists() else None
+    problems = [p for p in load_problems(cfg, None, manifest)[0] if p.id in gens]
+    if manifest:
+        record_evaluate(run_dir, cfg)
     workers = cfg.eval.workers
     print(f"[evaluate] {len(problems)} problems, {workers} workers")
 
@@ -116,6 +155,8 @@ def build_parser() -> argparse.ArgumentParser:
     gen.add_argument("--method", choices=sorted(METHODS), default="single_call")
     gen.add_argument("--run-dir", type=Path, help="default: runs/<method>-<timestamp>; "
                      "pass an existing one to resume")
+    gen.add_argument("--manifest", type=Path, help="reuse the problems and splits of an "
+                     "earlier run (its manifest.json or run dir)")
 
     ev = sub.add_parser("evaluate")
     ev.add_argument("run_dir", type=Path)
@@ -131,7 +172,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         run_dir = args.run_dir or (
             ROOT / cfg.run.output_dir / f"{args.method}-{time.strftime('%Y%m%d-%H%M%S')}"
         )
-        generate(cfg, args.method, run_dir)
+        generate(cfg, args.method, run_dir, args.manifest)
     else:
         evaluate_run(cfg, args.run_dir)
 
