@@ -154,10 +154,14 @@ Refactor `eval/runner.py`:
 - [ ] Mỗi prompt có `prompt_id` riêng để truy vết.
 - **DoD:** cả prompt lẫn feedback không bao giờ chứa held-out input. T6 cung cấp ranh giới split.
 
-**T11 · Implement selection, elitism, and deduplication** · P0 · ⬜
-- [ ] `search/selection.py` gồm `tournament(pop, k, rng)`, `survive(pop, offspring, size=4)` (luôn giữ baseline, rồi chọn các candidate hợp lệ tốt nhất) và `asm_hash(asm)` (bỏ comment, khoảng trắng và directive không ảnh hưởng code).
-- [ ] Candidate có fitness = −inf không bao giờ được chọn làm parent.
+**T11 · Implement selection, elitism, and deduplication** · P0 · ✅
+- [x] `search/selection.py` gồm `tournament(pop, k, rng)`, `survive(pop, offspring, size=4)` (luôn giữ baseline, rồi chọn các candidate hợp lệ tốt nhất) và `asm_hash(asm)` (bỏ comment, khoảng trắng và directive không ảnh hưởng code).
+- [x] Candidate có fitness = −inf không bao giờ được chọn làm parent.
 - **DoD:** chỉ gồm hàm thuần, chạy deterministic khi cùng `rng`, và có unit test trong T4.
+- **Cho T10, T14, T15:**
+  - `best(candidates)` chọn `selected_id` theo cùng một quy tắc cho mọi method: fitness cao nhất; nếu hoà thì giữ candidate sớm hơn, nên candidate chỉ nhanh ngang baseline sẽ không thay được baseline.
+  - `asm_hash` chỉ bỏ `.file/.ident/.loc/.cfi_*/.size/.type`. Section, alignment (`.p2align`) và string literal được giữ, nên hai chương trình khác nhau không bị coi là trùng.
+  - `survive` loại bản trùng (giữ bản xuất hiện sớm nhất) và loại cả bản sao của baseline. Unit test nằm ở `tests/test_selection.py`, trong đó có một test (Linux) assemble asm trước và sau khi normalize rồi so từng byte code/data, chứng minh hash bằng nhau thì đúng là cùng một chương trình.
 
 **T6 · Implement dataset splits** · P1 · ⬜
 - [ ] Chia problem thành `dev` (dùng để chỉnh prompt và config) và `test` (dùng cho kết quả cuối), với seed cố định.
