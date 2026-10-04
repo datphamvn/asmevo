@@ -78,10 +78,10 @@ graph LR
 | 1 | T5 | Implement the loader and manifest | P1 | ✅ | anhth.fuhn@gmail.com | T1 | T6, T16 |
 | 1 | T7 | Build the GCC baseline for ≥ 2 tasks | P2 | 🟡 | | T1 | — |
 | 1 | — | Sửa lỗi nhỏ (F1–F3, xem cuối file) | P1 | ⬜ | | — | — |
-| 2 | **T12** | Implement an isolated runner | **P0** | ⬜ | | T2 | T10, T13, T14, T15 |
-| 2 | T3 | Implement budget tracking | P0 | ⬜ | | T2 | T4, T10, T14, T15 |
+| 2 | **T12** | Implement an isolated runner | **P0** | 🔵 | palasek182@gmail.com | T2 | T10, T13, T14, T15 |
+| 2 | T3 | Implement budget tracking | P0 | 🔵 | palasek182@gmail.com | T2 | T4, T10, T14, T15 |
 | 2 | T9 | Implement mutation prompts and feedback | P0 | ⬜ | huynhvancuong20@gmail.com | T2, T8 | T10, T14, T15 |
-| 2 | T11 | Implement selection, elitism, and deduplication | P0 | ⬜ | | T2 | T4, T10 |
+| 2 | T11 | Implement selection, elitism, and deduplication | P0 | 🔵 | palasek182@gmail.com | T2 | T4, T10 |
 | 2 | T6 | Implement dataset splits | P1 | ⬜ | | T5 | T13, T16 |
 | 3 | **T10** | Implement the population model and candidate mutation | **P0** | ⛔ | | T3, T9, T11, T12 | T4, T16 |
 | 3 | T14 | Implement best-of-N | P0 | ⛔ | | T3, T9, T12 | T16 |
@@ -280,7 +280,7 @@ split:
 
 | ID | Lỗi | Vị trí | Trạng thái | PIC |
 |---|---|---|---|---|
-| F1 | `COPY .python-version` nhưng file này không có trong repo nên `docker build` lỗi | `docker/Dockerfile:24` | ⬜ | |
+| F1 | `COPY .python-version` nhưng file này không có trong repo nên `docker build` lỗi | `docker/Dockerfile:24` | 🔵 | palasek182@gmail.com |
 | F2 | README ghi thư mục gốc là `llm_opt/`; cần cập nhật cấu trúc và cách dùng các method mới | `README.md` | ⬜ | |
 | F3 | `statistics.median` lỗi khi không có LLM call nào | `src/asmevo/eval/report.py:50` | ⬜ | |
 
@@ -291,6 +291,6 @@ split:
 | pvtd2003@gmail.com | T1 | 5 |
 | huynhvancuong20@gmail.com | T8, T9, T17 | 0 |
 | anhth.fuhn@gmail.com | T2, T5 | 11 |
-| | | |
+| palasek182@gmail.com | T3, T11, T12 | 8 |
 
 Đếm commit bằng lệnh `git shortlog -sne --all`.
