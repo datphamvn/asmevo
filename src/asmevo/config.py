@@ -54,6 +54,11 @@ class RunConfig:
 
 
 @dataclass(frozen=True)
+class BestOfNConfig:
+    n: int
+
+
+@dataclass(frozen=True)
 class PolicyTreeConfig:
     max_calls: int
     max_children: int
@@ -68,6 +73,7 @@ class Config:
     llm: LLMConfig
     eval: EvalConfig
     run: RunConfig
+    best_of_n: BestOfNConfig
     policy_tree: PolicyTreeConfig
 
 
@@ -76,6 +82,7 @@ _SECTIONS = {
     "llm": LLMConfig,
     "eval": EvalConfig,
     "run": RunConfig,
+    "best_of_n": BestOfNConfig,
     "policy_tree": PolicyTreeConfig,
 }
 

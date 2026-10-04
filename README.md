@@ -34,10 +34,15 @@ llm:
 
 ```bash
 uv run asmevo generate --method single_call          # LLM calls; any host
+uv run asmevo generate --method best_of_n            # n samples, keep best; Linux x86-64 only
 uv run asmevo generate --method policy_tree          # tree search; Linux x86-64 only
 uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
 uv run asmevo curve runs/<run-a> runs/<run-b>        # best result within the first k calls
 ```
+
+`best_of_n` sends the `single_call` prompt `best_of_n.n` times independently, builds, tests,
+and times every sample during `generate`, and keeps the fastest correct one. Its per-sample
+results are stored in `generations.jsonl` under `rounds`.
 
 `--config FILE` applies on top of `configs/local.yaml`, e.g. to set `dataset.problem_ids` or a
 method's budget for one experiment.
