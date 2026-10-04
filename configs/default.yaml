@@ -32,3 +32,17 @@ eval:
 run:
   workers: 16               # concurrent LLM calls
   output_dir: runs
+
+# Same budget for every search method so RQ2 compares them fairly.
+search:
+  max_candidates: 12        # LLM-made candidates per (problem, seed), repairs and failures included
+  population_size: 4        # evolution: baseline + best valid candidates
+  offspring_per_generation: 4
+  generations: 3
+  tournament_size: 2
+  seeds: [0, 1, 2]
+
+split:
+  seed: 0
+  dev_fraction: 0.2         # problems used to tune prompts/config; the rest is the test split
+  heldout_fraction: 0.3     # per problem, test inputs kept for the final check only
