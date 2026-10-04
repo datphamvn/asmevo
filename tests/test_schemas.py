@@ -2,6 +2,9 @@ import json
 import math
 from dataclasses import asdict
 
+import pytest
+
+from asmevo.config import ROOT, SearchConfig, load_config
 from asmevo.schemas import Candidate, EvalResult, LLMCall, SearchTrace, Status, candidate_id
 
 
@@ -55,3 +58,16 @@ def test_derived_properties():
     assert trace.total_cost_usd == 0.5
     assert trace.total_output_tokens == 20
 
+
+def test_config_sections():
+    cfg = load_config()
+    assert cfg.search.max_candidates == 12
+    assert cfg.search.seeds == (0, 1, 2)
+    assert 0 < cfg.split.heldout_fraction < 1
+    assert load_config(ROOT / "configs" / "fptcloud.yaml").search == cfg.search
+
+
+def test_search_config_rejects_over_budget():
+    with pytest.raises(ValueError, match="max_candidates"):
+        SearchConfig(max_candidates=12, population_size=4, offspring_per_generation=5,
+                     generations=3, tournament_size=2, seeds=(0,))

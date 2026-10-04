@@ -56,14 +56,52 @@ class RunConfig:
 
 
 @dataclass(frozen=True)
+class SearchConfig:
+    max_candidates: int  # LLM-made candidates per (problem, seed), repairs and failures included
+    population_size: int
+    offspring_per_generation: int
+    generations: int
+    tournament_size: int
+    seeds: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if self.generations * self.offspring_per_generation > self.max_candidates:
+            raise ValueError("search: generations * offspring_per_generation exceeds "
+                             "max_candidates")
+        if not 1 <= self.tournament_size <= self.population_size:
+            raise ValueError("search: tournament_size must be in [1, population_size]")
+
+
+@dataclass(frozen=True)
+class SplitConfig:
+    seed: int
+    dev_fraction: float  # problems for tuning prompts/config; the rest is the test split
+    heldout_fraction: float  # per problem, test inputs kept out of search for the final check
+
+    def __post_init__(self) -> None:
+        for name in ("dev_fraction", "heldout_fraction"):
+            if not 0 < getattr(self, name) < 1:
+                raise ValueError(f"split.{name} must be in (0, 1)")
+
+
+@dataclass(frozen=True)
 class Config:
     dataset: DatasetConfig
     llm: LLMConfig
     eval: EvalConfig
     run: RunConfig
+    search: SearchConfig
+    split: SplitConfig
 
 
-_SECTIONS = {"dataset": DatasetConfig, "llm": LLMConfig, "eval": EvalConfig, "run": RunConfig}
+_SECTIONS = {
+    "dataset": DatasetConfig,
+    "llm": LLMConfig,
+    "eval": EvalConfig,
+    "run": RunConfig,
+    "search": SearchConfig,
+    "split": SplitConfig,
+}
 
 
 def _read(path: Path) -> dict[str, Any]:
