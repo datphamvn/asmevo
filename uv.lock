@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 5
 requires-python = "==3.11.*"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -96,6 +96,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "openai" },
+    { name = "pocketflow" },
     { name = "pyyaml" },
 ]
 
@@ -111,6 +112,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "openai", specifier = ">=3.22.1" },
+    { name = "pocketflow", specifier = ">=0.0.3" },
     { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
@@ -375,8 +377,8 @@ name = "httpcore2"
 version = "2.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11", marker = "sys_platform != 'emscripten'" },
-    { name = "truststore", marker = "sys_platform != 'emscripten'" },
+    { name = "h11" },
+    { name = "truststore" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cb/f3/1db7aa2bc2524062192bb0e0323969492d1883152a232fe36eea65f4e35c/httpcore2-2.13.1.tar.gz", hash = "sha256:e0aa977abe17e69a3b820a24542a6fa88702676d83880b8d194dcd18408e5103", size = 68071, upload-time = "2026-09-23T07:47:22.372Z" }
 wheels = [
@@ -683,6 +685,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "pocketflow"
+version = "0.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/22/96/2e15fa9d94329032d034337210bd6cc9d060eed59eb0b24dcb1375c0f2ec/pocketflow-0.0.3.tar.gz", hash = "sha256:afadc1c44658bf811668a789dee7053ed654d021c861c58696a2cb6bc4775133", size = 19463, upload-time = "2025-07-28T00:55:55.807Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/00/5e/1f27d937a4983c8783d9255c4880e9b8a5a1774ebc4eb55d4c3f3d112d6b/pocketflow-0.0.3-py3-none-any.whl", hash = "sha256:028795ae5db00f421c97036f7cd5e89fe0654bef2a03032c84fcf6f61a292962", size = 4484, upload-time = "2025-07-28T00:55:54.734Z" },
 ]
 
 [[package]]

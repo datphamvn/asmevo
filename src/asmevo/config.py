@@ -18,6 +18,7 @@ LOCAL_CONFIG = ROOT / "configs" / "local.yaml"
 class DatasetConfig:
     cache_dir: str
     limit: int | None
+    problem_ids: tuple[int, ...] | None
 
 
 @dataclass(frozen=True)
@@ -53,14 +54,30 @@ class RunConfig:
 
 
 @dataclass(frozen=True)
+class PolicyTreeConfig:
+    max_calls: int
+    max_children: int
+    max_repairs: int
+    patience: int
+    min_gain: float
+
+
+@dataclass(frozen=True)
 class Config:
     dataset: DatasetConfig
     llm: LLMConfig
     eval: EvalConfig
     run: RunConfig
+    policy_tree: PolicyTreeConfig
 
 
-_SECTIONS = {"dataset": DatasetConfig, "llm": LLMConfig, "eval": EvalConfig, "run": RunConfig}
+_SECTIONS = {
+    "dataset": DatasetConfig,
+    "llm": LLMConfig,
+    "eval": EvalConfig,
+    "run": RunConfig,
+    "policy_tree": PolicyTreeConfig,
+}
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -79,11 +96,13 @@ def _build(cls: type, data: dict[str, Any]) -> Any:
 
 
 def load_config(path: Path | None = None) -> Config:
-    """``default.yaml`` overlaid key by key with ``path``, or with ``configs/local.yaml``
-    when no path is given and that file exists."""
+    """``default.yaml``, overlaid key by key with ``configs/local.yaml`` if it exists, then
+    with ``path``."""
     raw = _read(DEFAULT_CONFIG)
-    override = path or (LOCAL_CONFIG if LOCAL_CONFIG.is_file() else None)
-    if override:
+    overrides = [LOCAL_CONFIG] if LOCAL_CONFIG.is_file() else []
+    if path is not None:
+        overrides.append(path)
+    for override in overrides:
         for name, section in _read(override).items():
             raw[name] = {**raw[name], **section}
     return Config(**{name: _build(cls, raw[name]) for name, cls in _SECTIONS.items()})
