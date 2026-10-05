@@ -34,7 +34,7 @@ và **priority**.
 graph LR
   T1[T1 Init ✅] --> T2[T2 Schemas ✅]
   T1 --> T5[T5 Loader/manifest]
-  T1 --> T7[T7 GCC baseline]
+  T1 --> T7[T7 GCC baseline ✅]
   T5 --> T6[T6 Splits]
   T8[T8 LLM client ✅] --> T9[T9 Prompts/feedback]
   T2 --> T3[T3 Budget]
@@ -76,7 +76,7 @@ graph LR
 | 0 | T8 | Implement the LLM client | — | ✅ | huynhvancuong20@gmail.com | — | T9 |
 | 1 | **T2** | Define schemas and interfaces | **P0** | ✅ | anhth.fuhn@gmail.com | T1 | T3, T9, T11, T12 |
 | 1 | T5 | Implement the loader and manifest | P1 | 🟡 | | T1 | T6, T16 |
-| 1 | T7 | Build the GCC baseline for ≥ 2 tasks | P2 | 🟡 | | T1 | — |
+| 1 | T7 | Build the GCC baseline for ≥ 2 tasks | P2 | ✅ | anhth.fuhn@gmail.com | T1 | — |
 | 1 | — | Sửa lỗi nhỏ (F1–F3, xem cuối file) | P1 | ⬜ | | — | — |
 | 2 | **T12** | Implement an isolated runner | **P0** | ⬜ | | T2 | T10, T13, T14, T15 |
 | 2 | T3 | Implement budget tracking | P0 | ⬜ | | T2 | T4, T10, T14, T15 |
@@ -121,10 +121,9 @@ Loader đã ghim HF revision (`data/dataset.py`), và mỗi run có `config.json
 - [ ] Ghi `manifest.json` vào mỗi run dir gồm: danh sách problem id theo split, SHA-256 của parquet, `gcc --version`, `hyperfine --version`, git commit hash và seed.
 - **DoD:** chạy lại cùng manifest thì ra cùng tập problem và cùng split.
 
-**T7 · Build the GCC baseline for ≥ 2 tasks** · P2 · 🟡
-Hiện chỉ assemble `baseline_asm` có sẵn trong dataset. Còn thiếu:
-- [ ] Script compile `c_code` bằng `gcc -O3 -S` của toolchain Docker (gcc-12) cho ≥ 2 problem.
-- [ ] So kết quả với `baseline_asm` của dataset: pass test không, thời gian lệch bao nhiêu. Ghi lại để dùng trong phần threats to validity.
+**T7 · Build the GCC baseline for ≥ 2 tasks** · P2 · ✅
+- [x] `asmevo gcc-baseline [--limit N] [--ids ...] [--cc gcc-12]` (`eval/gcc_baseline.py`) compile `c_code` bằng `gcc -O3 -S` và so với `baseline_asm`; đã chạy với gcc-11 và gcc-12 trên 5 problem.
+- [x] So kết quả với `baseline_asm` của dataset: 5/5 pass test với cả hai compiler, thời gian lệch ≤ 0.35%. Dataset được build bằng gcc 11.4, không phải gcc-12 → ghi vào threats to validity. Chi tiết: [gcc-baseline.md](gcc-baseline.md).
 
 **F1–F3 · Sửa lỗi nhỏ** · P1 — xem [cuối file](#sửa-lỗi-nhỏ).
 
@@ -288,7 +287,7 @@ split:
 |---|---|---|
 | pvtd2003@gmail.com | T1 | 5 |
 | huynhvancuong20@gmail.com | T8, T9, T17 | 0 |
-| anhth.fuhn@gmail.com | T2 | 4 |
+| anhth.fuhn@gmail.com | T2, T7 | 9 |
 | | | |
 
 Đếm commit bằng lệnh `git shortlog -sne --all`.
