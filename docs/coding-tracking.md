@@ -33,7 +33,7 @@ và **priority**.
 ```mermaid
 graph LR
   T1[T1 Init ✅] --> T2[T2 Schemas ✅]
-  T1 --> T5[T5 Loader/manifest]
+  T1 --> T5[T5 Loader/manifest ✅]
   T1 --> T7[T7 GCC baseline ✅]
   T5 --> T6[T6 Splits]
   T8[T8 LLM client ✅] --> T9[T9 Prompts/feedback]
@@ -75,14 +75,14 @@ graph LR
 | 0 | T1 | Initialize the codebase | — | ✅ | pvtd2003@gmail.com | — | T2, T5, T7 |
 | 0 | T8 | Implement the LLM client | — | ✅ | huynhvancuong20@gmail.com | — | T9 |
 | 1 | **T2** | Define schemas and interfaces | **P0** | ✅ | anhth.fuhn@gmail.com | T1 | T3, T9, T11, T12 |
-| 1 | T5 | Implement the loader and manifest | P1 | 🟡 | | T1 | T6, T16 |
+| 1 | T5 | Implement the loader and manifest | P1 | ✅ | anhth.fuhn@gmail.com | T1 | T6, T16 |
 | 1 | T7 | Build the GCC baseline for ≥ 2 tasks | P2 | ✅ | anhth.fuhn@gmail.com | T1 | — |
 | 1 | — | Sửa lỗi nhỏ (F1–F3, xem cuối file) | P1 | ⬜ | | — | — |
 | 2 | **T12** | Implement an isolated runner | **P0** | ⬜ | | T2 | T10, T13, T14, T15 |
 | 2 | T3 | Implement budget tracking | P0 | ⬜ | | T2 | T4, T10, T14, T15 |
 | 2 | T9 | Implement mutation prompts and feedback | P0 | ⬜ | huynhvancuong20@gmail.com | T2, T8 | T10, T14, T15 |
 | 2 | T11 | Implement selection, elitism, and deduplication | P0 | ⬜ | | T2 | T4, T10 |
-| 2 | T6 | Implement dataset splits | P1 | ⛔ | | T5 | T13, T16 |
+| 2 | T6 | Implement dataset splits | P1 | ⬜ | | T5 | T13, T16 |
 | 3 | **T10** | Implement the population model and candidate mutation | **P0** | ⛔ | | T3, T9, T11, T12 | T4, T16 |
 | 3 | T14 | Implement best-of-N | P0 | ⛔ | | T3, T9, T12 | T16 |
 | 3 | T15 | Implement iterative refinement | P0 | ⛔ | | T3, T9, T12 | T16 |
@@ -116,10 +116,12 @@ Ghi chú: commit đầu tiên ngày 29/09, plan yêu cầu 19/09.
 - [x] Stub `evaluate_asm(...)` (T12) và `Budget`/`BudgetExhausted` (T3) có chữ ký cố định.
 - **DoD:** merge được interface (có thể kèm stub `NotImplementedError`) để T3, T9, T11 và T12 bắt đầu song song.
 
-**T5 · Implement the loader and manifest** · P1 · 🟡
-Loader đã ghim HF revision (`data/dataset.py`), và mỗi run có `config.json`. Còn thiếu:
-- [ ] Ghi `manifest.json` vào mỗi run dir gồm: danh sách problem id theo split, SHA-256 của parquet, `gcc --version`, `hyperfine --version`, git commit hash và seed.
-- **DoD:** chạy lại cùng manifest thì ra cùng tập problem và cùng split.
+**T5 · Implement the loader and manifest** · P1 · ✅
+Loader ghim HF revision và đọc đúng file parquet đã hash (`data/dataset.py`); mỗi run có `config.json`.
+- [x] Ghi `manifest.json` vào mỗi run dir (`data/manifest.py`) gồm: danh sách problem id theo split, SHA-256 của parquet, `gcc --version`, `hyperfine --version`, git commit hash và seed. `evaluate` ghi thêm toolchain lúc chấm vào `manifest["evaluate"]`.
+- [x] Resume một run dir thì báo lỗi nếu dataset, problem id, split hoặc seed khác manifest. `asmevo generate --manifest <run cũ>` tạo run mới với đúng tập problem và split đó.
+- **DoD:** chạy lại cùng manifest thì ra cùng tập problem và cùng split (`tests/test_manifest.py`).
+- **Cho T6:** truyền split qua `build_manifest(..., splits={"dev": [...], "test": [...]})`; mặc định hiện là `{"all": [...]}`. `splits` thuộc phần reproducible nên resume sẽ kiểm tra nó.
 
 **T7 · Build the GCC baseline for ≥ 2 tasks** · P2 · ✅
 - [x] `asmevo gcc-baseline [--limit N] [--ids ...] [--cc gcc-12]` (`eval/gcc_baseline.py`) compile `c_code` bằng `gcc -O3 -S` và so với `baseline_asm`; đã chạy trên 5 problem, trong Docker và trên host (gcc-11, gcc-12).
@@ -156,7 +158,7 @@ Refactor `eval/runner.py`:
 - [ ] Candidate có fitness = −inf không bao giờ được chọn làm parent.
 - **DoD:** chỉ gồm hàm thuần, chạy deterministic khi cùng `rng`, và có unit test trong T4.
 
-**T6 · Implement dataset splits** · P1 · ⛔ T5
+**T6 · Implement dataset splits** · P1 · ⬜
 - [ ] Chia problem thành `dev` (dùng để chỉnh prompt và config) và `test` (dùng cho kết quả cuối), với seed cố định.
 - [ ] Trong mỗi problem, chia `tests` thành `search_tests` (dùng khi search và selection) và `heldout_tests` (chỉ dùng trong final check của T13). Problem chỉ có 1 test thì ghi rõ cách xử lý.
 - **DoD:** split ghi vào manifest (T5). Có assert bảo đảm held-out không đi vào prompt hay selection.
@@ -287,7 +289,7 @@ split:
 |---|---|---|
 | pvtd2003@gmail.com | T1 | 5 |
 | huynhvancuong20@gmail.com | T8, T9, T17 | 0 |
-| anhth.fuhn@gmail.com | T2, T7 | 9 |
+| anhth.fuhn@gmail.com | T2, T5, T7 | 15 |
 | | | |
 
 Đếm commit bằng lệnh `git shortlog -sne --all`.
