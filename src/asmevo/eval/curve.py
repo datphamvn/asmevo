@@ -85,6 +85,7 @@ def plot_curves(curves: dict[str, list[dict[str, Any]]], path: str) -> None:
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import FuncFormatter
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 4))
     for ax, metric, title in [(axes[0], "geomean_speedup", "geometric mean speedup"),
@@ -94,6 +95,11 @@ def plot_curves(curves: dict[str, list[dict[str, Any]]], path: str) -> None:
                     marker="o", label=name)
         ax.set_xscale("log", base=2)
         ax.set_xlabel("LLM calls per problem (mean used)")
+        ax.set_ylabel("faster than gcc -O3")
+        lo, hi = ax.get_ylim()
+        digits = 1 if hi - lo < 0.1 else 0
+        ax.yaxis.set_major_formatter(
+            FuncFormatter(lambda y, _, d=digits: f"{100 * (y - 1):+.{d}f}%"))
         ax.set_title(title)
         ax.grid(True, alpha=0.3)
     axes[0].legend()
