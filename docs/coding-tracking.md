@@ -122,8 +122,8 @@ Loader đã ghim HF revision (`data/dataset.py`), và mỗi run có `config.json
 - **DoD:** chạy lại cùng manifest thì ra cùng tập problem và cùng split.
 
 **T7 · Build the GCC baseline for ≥ 2 tasks** · P2 · ✅
-- [x] `asmevo gcc-baseline [--limit N] [--ids ...] [--cc gcc-12]` (`eval/gcc_baseline.py`) compile `c_code` bằng `gcc -O3 -S` và so với `baseline_asm`; đã chạy với gcc-11 và gcc-12 trên 5 problem.
-- [x] So kết quả với `baseline_asm` của dataset: 5/5 pass test với cả hai compiler, thời gian lệch ≤ 0.35%. Dataset được build bằng gcc 11.4, không phải gcc-12 → ghi vào threats to validity. Chi tiết: [gcc-baseline.md](gcc-baseline.md).
+- [x] `asmevo gcc-baseline [--limit N] [--ids ...] [--cc gcc-12]` (`eval/gcc_baseline.py`) compile `c_code` bằng `gcc -O3 -S` và so với `baseline_asm`; đã chạy trên 5 problem, trong Docker và trên host (gcc-11, gcc-12).
+- [x] So kết quả với `baseline_asm` của dataset: dataset được build bằng gcc 11.4, nên Docker đã đổi từ gcc-12 sang gcc-11 (11.4.0, có kiểm tra version lúc build). Trong Docker: 5/5 asm giống hệt, 5/5 pass test, thời gian lệch ≤ 0.8% (nhiễu đo). Chi tiết: [gcc-baseline.md](gcc-baseline.md).
 
 **F1–F3 · Sửa lỗi nhỏ** · P1 — xem [cuối file](#sửa-lỗi-nhỏ).
 
@@ -277,7 +277,7 @@ split:
 
 | ID | Lỗi | Vị trí | Trạng thái | PIC |
 |---|---|---|---|---|
-| F1 | `COPY .python-version` nhưng file này không có trong repo nên `docker build` lỗi | `docker/Dockerfile:24` | ⬜ | |
+| F1 | `COPY .python-version` nhưng file này không có trong repo nên `docker build` lỗi | `docker/Dockerfile:24` | ✅ (thêm `.python-version` = 3.11, cùng PR T7) | anhth.fuhn@gmail.com |
 | F2 | README ghi thư mục gốc là `llm_opt/`; cần cập nhật cấu trúc và cách dùng các method mới | `README.md` | ⬜ | |
 | F3 | `statistics.median` lỗi khi không có LLM call nào | `src/asmevo/eval/report.py:50` | ⬜ | |
 

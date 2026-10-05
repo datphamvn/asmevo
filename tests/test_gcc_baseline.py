@@ -65,7 +65,7 @@ def test_summarize_geomean():
     assert s["ours_status_counts"] == {Status.OK: 2, "compile_fail": 1}
 
 
-CC = shutil.which("gcc-12") or shutil.which("gcc")
+CC = shutil.which("gcc") or shutil.which("gcc-11") or shutil.which("gcc-12")
 needs_toolchain = pytest.mark.skipif(
     CC is None or shutil.which("hyperfine") is None or platform.machine() != "x86_64",
     reason="needs gcc, hyperfine and Linux x86-64",
