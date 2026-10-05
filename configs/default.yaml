@@ -44,6 +44,6 @@ refinement_loop:
 policy_tree:
   max_calls: 32             # LLM calls per problem at most; each candidate is built/tested/timed
   max_children: 4           # children per node
-  max_repairs: 1            # repair attempts in a row before backtracking from a broken line
-  patience: 6               # terminate after this many calls without a new best
-  min_gain: 0.01            # a speedup must beat its reference by 1% to count, not timing noise
+  max_repairs: 2            # repair attempts in a row before backtracking from a broken line
+  patience: 32              # terminate after this many calls without a new best (= max_calls: never)
+  min_gain: 0.005           # a speedup must beat its reference by 0.5% to count, not timing noise
