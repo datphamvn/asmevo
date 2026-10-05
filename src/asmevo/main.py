@@ -2,6 +2,7 @@
 
   uv run asmevo generate --method single_call          # LLM calls; runs on any host
   uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
+  uv run asmevo gcc-baseline --limit 5                 # dataset -O3 vs our gcc -O3 -S
 """
 
 from __future__ import annotations
@@ -12,11 +13,12 @@ import platform
 import time
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from asmevo.config import ROOT, Config, load_config, load_dotenv
 from asmevo.data.dataset import Problem, load_test_set
+from asmevo.eval import gcc_baseline
 from asmevo.eval.report import summarize
 from asmevo.eval.runner import evaluate
 from asmevo.methods.single_call import flow as single_call
@@ -80,8 +82,7 @@ def generate(cfg: Config, method: str, run_dir: Path) -> None:
 
 
 def evaluate_run(cfg: Config, run_dir: Path) -> None:
-    if platform.machine().lower() not in {"x86_64", "amd64"}:
-        raise SystemExit(f"evaluate needs Linux x86-64; this host is {platform.machine()}")
+    require_x86_64("evaluate")
     gens = load_generations(run_dir)
     if not gens:
         raise SystemExit(f"no {GENERATIONS} in {run_dir}")
@@ -105,6 +106,38 @@ def evaluate_run(cfg: Config, run_dir: Path) -> None:
     print(summary, end="")
 
 
+def require_x86_64(command: str) -> None:
+    if platform.machine().lower() not in {"x86_64", "amd64"}:
+        raise SystemExit(f"{command} needs Linux x86-64; this host is {platform.machine()}")
+
+
+def gcc_baseline_run(cfg: Config, out_dir: Path, limit: int | None, ids: list[int] | None,
+                     cc: str | None) -> None:
+    """Compare the dataset's -O3 baseline with ``cc -O3 -S`` of the same C code (T7)."""
+    require_x86_64("gcc-baseline")
+    ev = replace(cfg.eval, cc=cc) if cc else cfg.eval
+    cc_version = gcc_baseline.gcc_version(ev.cc)
+    problems = load_problems(cfg, None if ids else limit)
+    if ids:
+        problems = [p for p in problems if p.id in set(ids)]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[gcc-baseline] {len(problems)} problems with {cc_version}")
+
+    rows = []
+    for i, p in enumerate(problems, 1):
+        r = gcc_baseline.compare(p, ev)
+        rows.append(r)
+        timing = f"ratio={r.ratio:.3f}" if r.ratio is not None else r.detail[:80]
+        print(f"[gcc-baseline] {i}/{len(problems)} problem {p.id}: "
+              f"identical={r.identical} diff={r.diff_lines} {r.ours_status} {timing}")
+
+    (out_dir / "comparison.jsonl").write_text(
+        "".join(json.dumps(asdict(r)) + "\n" for r in rows))
+    summary = json.dumps(gcc_baseline.summarize(rows, cc_version), indent=2) + "\n"
+    (out_dir / SUMMARY).write_text(summary)
+    print(summary, end="")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="asmevo", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -119,6 +152,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     ev = sub.add_parser("evaluate")
     ev.add_argument("run_dir", type=Path)
+
+    gb = sub.add_parser("gcc-baseline", help="compare the dataset -O3 baseline with ours")
+    gb.add_argument("--limit", type=int, default=5, help="first N problems (default: 5)")
+    gb.add_argument("--ids", type=int, nargs="+", help="problem ids; overrides --limit")
+    gb.add_argument("--cc", help="compiler to use instead of eval.cc, e.g. gcc-12")
+    gb.add_argument("--out", type=Path, help="default: runs/gcc_baseline-<timestamp>")
     return p
 
 
@@ -132,6 +171,11 @@ def main(argv: Sequence[str] | None = None) -> None:
             ROOT / cfg.run.output_dir / f"{args.method}-{time.strftime('%Y%m%d-%H%M%S')}"
         )
         generate(cfg, args.method, run_dir)
+    elif args.command == "gcc-baseline":
+        out = args.out or (
+            ROOT / cfg.run.output_dir / f"gcc_baseline-{time.strftime('%Y%m%d-%H%M%S')}"
+        )
+        gcc_baseline_run(cfg, out, args.limit, args.ids, args.cc)
     else:
         evaluate_run(cfg, args.run_dir)
 
