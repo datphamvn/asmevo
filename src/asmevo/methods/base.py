@@ -21,6 +21,7 @@ class SearchMethod(Protocol):
         """Search for a faster version of ``problem.baseline_asm``.
 
         Calls ``budget.charge()`` before each LLM-made candidate, draws all randomness from
-        ``rng``, and records every candidate (failed ones included) in the trace.
+        ``rng``, and records every candidate (failed ones included) in the trace. The runner
+        passes ``budget.guard(llm)`` as ``llm``, so an uncharged model call raises.
         """
         ...
