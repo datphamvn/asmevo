@@ -46,6 +46,5 @@ def summarize(results: list[EvalResult], generations: list[Generation]) -> dict[
         "input_tokens": sum(c.input_tokens for c in calls),
         "output_tokens": sum(c.output_tokens for c in calls),
         "reasoning_tokens": sum(c.reasoning_tokens for c in calls),
-        "cost_usd": sum(c.cost_usd for c in calls),
         "median_latency_s": statistics.median(c.latency_s for c in calls),
     }

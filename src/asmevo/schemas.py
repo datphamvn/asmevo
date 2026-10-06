@@ -24,23 +24,7 @@ class LLMCall:
     input_tokens: int
     output_tokens: int
     reasoning_tokens: int
-    cost_usd: float
     latency_s: float
-
-
-@dataclass(frozen=True)
-class Generation:
-    """One method's candidate assembly for one problem."""
-
-    problem_id: int
-    method: str
-    asm: str | None
-    reply: str
-    llm_calls: tuple[LLMCall, ...]
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> Generation:
-        return cls(**{**d, "llm_calls": tuple(LLMCall(**c) for c in d["llm_calls"])})
 
 
 @dataclass(frozen=True)
@@ -57,3 +41,32 @@ class EvalResult:
     @property
     def ok(self) -> bool:
         return self.status is Status.OK
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> EvalResult:
+        return cls(**{**d, "status": Status(d["status"]),
+                      "dropped_tests": tuple(d["dropped_tests"])})
+
+
+@dataclass(frozen=True)
+class Generation:
+    """One method's candidate assembly for one problem."""
+
+    problem_id: int
+    method: str
+    asm: str | None
+    reply: str
+    llm_calls: tuple[LLMCall, ...]
+    rounds: tuple[EvalResult, ...] = ()  # per-round feedback of methods that evaluate in the loop
+    round_asm: tuple[str | None, ...] = ()  # the candidate of each round
+    round_parent: tuple[int, ...] = ()  # round each one was derived from; -1 is the -O3 baseline
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> Generation:
+        return cls(**{
+            **d,
+            "llm_calls": tuple(LLMCall(**c) for c in d["llm_calls"]),
+            "rounds": tuple(EvalResult.from_dict(r) for r in d["rounds"]),
+            "round_asm": tuple(d["round_asm"]),
+            "round_parent": tuple(d["round_parent"]),
+        })
