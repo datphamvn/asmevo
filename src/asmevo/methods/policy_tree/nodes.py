@@ -26,7 +26,6 @@ class TreeNode:
     score: float
     ok: bool
     repairs: int = 0  # consecutive repair expansions that led here
-    hint: str | None = None
     children: int = 0
     hints_used: list[str] = field(default_factory=list)
 
@@ -153,7 +152,6 @@ class Attach(Node):
             score=score(result),
             ok=result.ok,
             repairs=parent.repairs + 1 if not parent.ok else 0,
-            hint=pending.hint,
         )
         parent.children += 1
         if pending.hint:

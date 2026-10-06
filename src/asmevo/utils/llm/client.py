@@ -16,7 +16,7 @@ Message = dict[str, str]  # {"role": "system" | "user" | "assistant", "content":
 
 class LLMClient(Protocol):
     def complete(self, messages: list[Message], *, prompt_id: str) -> tuple[str, LLMCall]:
-        """Return the model's text reply and a usage record (tokens, cost, latency)."""
+        """Return the model's text reply and a usage record (tokens, latency)."""
         ...
 
 
@@ -49,10 +49,6 @@ class OpenAICompatibleClient:
             raise RuntimeError(f"response {resp.id} has no usage; cannot account tokens")
 
         usage = resp.usage
-        cost = (
-            usage.input_tokens * self.cfg.cost_per_1k_input
-            + usage.output_tokens * self.cfg.cost_per_1k_output
-        ) / 1000
         call = LLMCall(
             model=self.cfg.model,
             prompt_id=prompt_id,
@@ -60,7 +56,6 @@ class OpenAICompatibleClient:
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             reasoning_tokens=usage.output_tokens_details.reasoning_tokens,
-            cost_usd=cost,
             latency_s=latency,
         )
         return resp.output_text, call

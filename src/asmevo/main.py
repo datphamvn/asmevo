@@ -21,7 +21,7 @@ from asmevo.config import ROOT, Config, load_config, load_dotenv
 from asmevo.data.dataset import Problem, load_test_set
 from asmevo.eval.curve import budget_curve, plot_curves
 from asmevo.eval.report import summarize
-from asmevo.eval.runner import evaluate
+from asmevo.eval.runner import evaluate, pin_work_cpus
 from asmevo.methods.policy_tree import flow as policy_tree
 from asmevo.methods.single_call import flow as single_call
 from asmevo.schemas import Generation
@@ -41,9 +41,12 @@ SUMMARY = "summary.json"
 CURVE = "curve.json"
 
 
-def require_x86(what: str) -> None:
+def prepare_timing(cfg: Config, what: str) -> None:
+    """Check the host can build and time candidates; call before starting any threads."""
     if platform.machine().lower() not in {"x86_64", "amd64"}:
         raise SystemExit(f"{what} needs Linux x86-64; this host is {platform.machine()}")
+    if cfg.eval.pin_cpus:
+        pin_work_cpus()
 
 
 def load_problems(cfg: Config, limit: int | None) -> list[Problem]:
@@ -70,7 +73,7 @@ def generate(cfg: Config, method: str, run_dir: Path) -> None:
     Stops at the first error; re-running on the same ``run_dir`` resumes where it stopped.
     """
     if method in EXEC_METHODS:
-        require_x86(f"generate --method {method}")
+        prepare_timing(cfg, f"generate --method {method}")
     run_dir.mkdir(parents=True, exist_ok=True)
     snapshot = json.dumps({"method": method, "config": asdict(cfg)}, indent=2) + "\n"
     config_path = run_dir / CONFIG
@@ -106,7 +109,7 @@ def generate(cfg: Config, method: str, run_dir: Path) -> None:
 
 
 def evaluate_run(cfg: Config, run_dir: Path) -> None:
-    require_x86("evaluate")
+    prepare_timing(cfg, "evaluate")
     gens = load_generations(run_dir)
     if not gens:
         raise SystemExit(f"no {GENERATIONS} in {run_dir}")
@@ -132,7 +135,7 @@ def evaluate_run(cfg: Config, run_dir: Path) -> None:
 
 def curve_runs(cfg: Config, run_dirs: list[Path], ks: list[int], out: Path) -> None:
     """Write ``curve.json`` into each run and one plot of all runs to ``out``."""
-    require_x86("curve")
+    prepare_timing(cfg, "curve")
     runs = {}
     for run_dir in run_dirs:
         method = json.loads((run_dir / CONFIG).read_text())["method"]

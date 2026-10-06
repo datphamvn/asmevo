@@ -30,8 +30,6 @@ class LLMConfig:
     max_output_tokens: int
     timeout_s: float
     max_retries: int
-    cost_per_1k_input: float
-    cost_per_1k_output: float
 
 
 @dataclass(frozen=True)
@@ -44,6 +42,9 @@ class EvalConfig:
     hyperfine: str
     warmup_runs: int
     timing_repeats: int
+    timing_stat: str
+    balanced_order: bool
+    pin_cpus: bool
     workers: int
 
 

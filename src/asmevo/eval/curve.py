@@ -7,8 +7,6 @@ in-loop timing, which favours whichever of many noisy measurements happened to b
 
 from __future__ import annotations
 
-import hashlib
-from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from typing import Any
@@ -26,16 +24,11 @@ def prefix_pick(gen: Generation, k: int) -> int:
     return best_round(list(gen.rounds[:k]))
 
 
-def _key(problem_id: int, asm: str | None) -> tuple[int, str | None]:
-    return problem_id, None if asm is None else hashlib.sha256(asm.encode()).hexdigest()
-
-
 def budget_curve(
     runs: dict[str, list[Generation]],
     problems: dict[int, Problem],
     ks: list[int],
     cfg: EvalConfig,
-    log: Callable[[str], None] = print,
 ) -> dict[str, list[dict[str, Any]]]:
     """Per run, one point per k: ``summarize`` of the re-scored picks plus calls used."""
     for name, gens in runs.items():
@@ -48,11 +41,10 @@ def budget_curve(
     }
     todo: dict[tuple[int, str | None], tuple[Problem, Generation]] = {}
     for g, i in picks.values():
-        key = _key(g.problem_id, g.round_asm[i])
-        todo.setdefault(key, (problems[g.problem_id], replace(
+        todo.setdefault((g.problem_id, g.round_asm[i]), (problems[g.problem_id], replace(
             g, asm=g.round_asm[i], llm_calls=(g.llm_calls[i],), rounds=(), round_asm=(),
             round_parent=())))
-    log(f"[curve] re-scoring {len(todo)} distinct picks, {cfg.workers} workers")
+    print(f"[curve] re-scoring {len(todo)} distinct picks, {cfg.workers} workers")
     with ThreadPoolExecutor(max_workers=cfg.workers) as pool:
         futures = {key: pool.submit(evaluate, p, g, cfg) for key, (p, g) in todo.items()}
         scored: dict[tuple[int, str | None], EvalResult] = {
@@ -66,7 +58,7 @@ def budget_curve(
             results, prefixes = [], []
             for g in gens:
                 _, i = picks[name, k, g.problem_id]
-                results.append(scored[_key(g.problem_id, g.round_asm[i])])
+                results.append(scored[g.problem_id, g.round_asm[i]])
                 prefixes.append(replace(g, llm_calls=g.llm_calls[:k]))
             summary = summarize(results, prefixes)
             summary.pop("dropped_tests")

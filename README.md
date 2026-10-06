@@ -3,11 +3,11 @@
 ## Project structure
 
 ```
-llm_opt/
+asmevo/
 ├── pyproject.toml          # uv-managed project: dependencies, dev tools, lint/test settings
 ├── uv.lock                 # pinned dependency versions (commit it; run `uv sync`)
 ├── configs/
-│   ├── default.yaml        # default configuration for the search algorithm
+│   ├── default.yaml        # every setting with its default
 │   └── local.yaml          # your overrides on top of default.yaml (gitignored)
 ├── docker/
 │   └── Dockerfile          # fixed Linux x86-64
@@ -24,7 +24,9 @@ llm_opt/
 ## Usage
 
 Put `OPENAI_API_KEY` (and optionally `HF_TOKEN`) in `.env`. To change any setting, e.g. the
-endpoint, model, or `dataset.limit` for a quick run, add only those keys to `configs/local.yaml`:
+endpoint, model, or `dataset.limit` for a quick run, add only those keys to `configs/local.yaml`
+(per experiment, e.g. `dataset.problem_ids` or a budget, use a file passed as `--config FILE`,
+applied on top):
 
 ```yaml
 llm:
@@ -33,21 +35,19 @@ llm:
 ```
 
 ```bash
-uv run asmevo generate --method single_call          # LLM calls; any host
-uv run asmevo generate --method policy_tree          # tree search; Linux x86-64 only
-uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
-uv run asmevo curve runs/<run-a> runs/<run-b>        # best result within the first k calls
+uv run asmevo generate --method single_call          # LLM calls only
+uv run asmevo generate --method policy_tree          # tree search
+uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time
+uv run asmevo curve runs/<run-a> runs/<run-b>        # speedup of the best in the first k calls
 ```
 
-`--config FILE` applies on top of `configs/local.yaml`, e.g. to set `dataset.problem_ids` or a
-method's budget for one experiment.
+All but `single_call` generation need Linux x86-64 (natively or via `docker/`).
 
 `policy_tree` searches a tree of complete programs rooted at the -O3 baseline. After each
 candidate is built, tested, and timed, a hand-written policy expands it (refine, or repair if
 broken), branches to a sibling with a new strategy hint, backtracks to the best node with room,
 or terminates after `policy_tree.patience` calls without a new best. It keeps the fastest
-correct candidate. `curve` re-scores, for each k, what each run would have returned after its
-first k calls, and plots speedup against calls.
+correct candidate.
 
 `generate` stops on the first failed API call; pass `--run-dir` to resume. Each run directory
 ends up with `generations.jsonl`, `results.jsonl`, and `summary.json`. Candidates that fail to

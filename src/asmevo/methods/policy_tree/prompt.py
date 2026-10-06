@@ -1,7 +1,4 @@
-"""Policy-tree prompts: a node's children see the SuperCoder prompt, the node, and its feedback.
-
-``build_feedback`` repeats the ``refinement_loop`` wording so both methods give the same feedback.
-"""
+"""Policy-tree prompts: a node's children see the SuperCoder prompt, the node, and its feedback."""
 
 from __future__ import annotations
 

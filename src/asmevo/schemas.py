@@ -24,7 +24,6 @@ class LLMCall:
     input_tokens: int
     output_tokens: int
     reasoning_tokens: int
-    cost_usd: float
     latency_s: float
 
 
@@ -67,7 +66,7 @@ class Generation:
         return cls(**{
             **d,
             "llm_calls": tuple(LLMCall(**c) for c in d["llm_calls"]),
-            "rounds": tuple(EvalResult.from_dict(r) for r in d.get("rounds", ())),
-            "round_asm": tuple(d.get("round_asm", ())),
-            "round_parent": tuple(d.get("round_parent", ())),
+            "rounds": tuple(EvalResult.from_dict(r) for r in d["rounds"]),
+            "round_asm": tuple(d["round_asm"]),
+            "round_parent": tuple(d["round_parent"]),
         })

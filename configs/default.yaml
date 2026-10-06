@@ -3,7 +3,6 @@ dataset:
   limit: null               # set an int to run on the first N problems only
   problem_ids: null         # or a list of problem ids to run on only those
 
-
 llm:
   base_url: https://api.openai.com/v1
   model: gpt-6-luna
@@ -11,9 +10,7 @@ llm:
   reasoning_effort: medium
   max_output_tokens: 32768
   timeout_s: 1800
-  max_retries: 5            # SDK retries connection errors
-  cost_per_1k_input: 0.0
-  cost_per_1k_output: 0.0
+  max_retries: 5
 
 # Build/test/time against the -O3 baseline (Linux x86-64 only). Keep identical across the
 # methods being compared; each run records the values it used in config.json.
@@ -23,10 +20,13 @@ eval:
   compile_timeout_s: 30
   run_timeout_s: 10
   memory_limit_mb: 1024
-  hyperfine: hyperfine      # timing tool; per test input it discards 3 runs, averages 10
-  warmup_runs: 3
-  timing_repeats: 10
-  workers: 8                # parallel problems; each times baseline and candidate interleaved
+  hyperfine: hyperfine      # timing tool
+  warmup_runs: 3            # discarded runs per test input
+  timing_repeats: 10        # timed runs per test input
+  timing_stat: median       # of the timed runs per test (SuperCoder uses mean)
+  balanced_order: true      # discarded block, then ABBA, so neither program is timed first
+  pin_cpus: true            # time alone on one thread per performance core; work elsewhere
+  workers: 8                # parallel problems; with pin_cpus, timing waits for a free CPU
 
 run:
   workers: 16               # concurrent LLM calls
@@ -35,6 +35,6 @@ run:
 policy_tree:
   max_calls: 32             # LLM calls per problem at most; each candidate is built/tested/timed
   max_children: 4           # children per node
-  max_repairs: 1            # repair attempts in a row before backtracking from a broken line
-  patience: 6               # terminate after this many calls without a new best
-  min_gain: 0.01            # a speedup must beat its reference by 1% to count, not timing noise
+  max_repairs: 2            # repair attempts in a row before backtracking from a broken line
+  patience: 32              # terminate after this many calls without a new best (= max_calls: never)
+  min_gain: 0.005           # a speedup must beat its reference by 0.5% to count, not timing noise
