@@ -84,7 +84,7 @@ graph LR
 | 2 | T11 | Implement selection, elitism, and deduplication | P0 | ⬜ | | T2 | T4, T10 |
 | 2 | T6 | Implement dataset splits | P1 | ⬜ | | T5 | T13, T16 |
 | 3 | **T10** | Implement the population model and candidate mutation | **P0** | 🔵 | minhqngo.work@gmail.com | T3, T9, T11, T12 | T4, T16 |
-| 3 | T14 | Implement best-of-N | P0 | ⛔ | | T3, T9, T12 | T16 |
+| 3 | T14 | Implement best-of-N | P0 | 🔵 | minhqngo.work@gmail.com | T3, T9, T12 | T16 |
 | 3 | T15 | Implement iterative refinement | P0 | ⛔ | | T3, T9, T12 | T16 |
 | 3 | T13 | Implement timeouts, resource limits, and correctness checks | P1 | ⛔ | | T6, T12 | T16 |
 | 4 | **T16** | Implement the experiment runner and run 3 seeds per method | **P0** | ⛔ | | T5, T6, T10, T13, T14, T15 | T4, T17 |
@@ -186,8 +186,10 @@ Refactor `eval/runner.py`:
 - **Cho T14, T15:** `methods/nodes.py` có store và node dùng chung. `Mutate` (charge budget → gọi LLM → `extract_asm` → `asm_hash` → `evaluate_asm`) tạo một `Candidate` cho mỗi phần tử của `shared["parents"]`; `Finish` chọn `best()` và ghi `SearchTrace`. Program có hash đã chấm thì dùng lại kết quả, không đo lại; bản sao của baseline được tính 1.0x.
 - **Chỗ tạm, đánh dấu `TODO(T#)`:** T9 thay `methods/prompt.py` (prompt `mutate_v0` và `format_feedback`). T6 thay `search_tests()` trong `methods/nodes.py`, hiện trả về toàn bộ `problem.tests`. T13 thay `final`/`fallback` trong `Finish`, hiện là kết quả search của candidate được chọn và `fallback=False`.
 
-**T14 · Implement best-of-N** · P0 · ⛔ T3, T9, T12
-- [ ] `methods/best_of_n/flow.py`: 12 mẫu độc lập từ baseline, không có feedback, chọn mẫu có fitness cao nhất.
+**T14 · Implement best-of-N** · P0 · 🔵 T12
+- [x] `methods/best_of_n/flow.py`: 12 mẫu độc lập từ baseline, không có feedback, chọn mẫu có fitness cao nhất. Flow là `Mutate` và `Finish` dùng chung của T10, chạy trên 12 bản baseline làm parent. Mỗi call gửi đúng prompt SuperCoder như `single_call`; mẫu trùng không bị đo lại.
+- [x] Unit test nằm ở `tests/test_best_of_n.py`; fake LLM và fake evaluator dùng chung ở `tests/fakes.py`. Đã chạy end-to-end trên problem 0 và 1 (đã merge thử T12 vào, LLM giả lập).
+- [ ] Chạy với LLM thật, sau khi T12 merge.
 
 **T15 · Implement iterative refinement** · P0 · ⛔ T3, T9, T12
 - [ ] `methods/refine/flow.py`: đi theo một hướng duy nhất qua 12 bước. Mỗi bước sửa candidate tốt nhất hiện có (hoặc candidate vừa sinh) theo feedback, và giữ lại candidate tốt nhất.
