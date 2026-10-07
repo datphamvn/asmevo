@@ -83,7 +83,7 @@ graph LR
 | 2 | T9 | Implement mutation prompts and feedback | P0 | ⬜ | huynhvancuong20@gmail.com | T2, T8 | T10, T14, T15 |
 | 2 | T11 | Implement selection, elitism, and deduplication | P0 | ⬜ | | T2 | T4, T10 |
 | 2 | T6 | Implement dataset splits | P1 | ⬜ | | T5 | T13, T16 |
-| 3 | **T10** | Implement the population model and candidate mutation | **P0** | ⛔ | | T3, T9, T11, T12 | T4, T16 |
+| 3 | **T10** | Implement the population model and candidate mutation | **P0** | 🔵 | minhqngo.work@gmail.com | T3, T9, T11, T12 | T4, T16 |
 | 3 | T14 | Implement best-of-N | P0 | ⛔ | | T3, T9, T12 | T16 |
 | 3 | T15 | Implement iterative refinement | P0 | ⛔ | | T3, T9, T12 | T16 |
 | 3 | T13 | Implement timeouts, resource limits, and correctness checks | P1 | ⛔ | | T6, T12 | T16 |
@@ -173,14 +173,18 @@ Refactor `eval/runner.py`:
 
 ### Wave 3 — các method tìm kiếm
 
-**T10 · Implement the population model and candidate mutation** · P0 · ⛔ T3, T9, T11, T12
-- [ ] `methods/evolution/flow.py`:
+**T10 · Implement the population model and candidate mutation** · P0 · 🔵 T9, T12
+- [x] `methods/evolution/flow.py` (PocketFlow: `Select >> Mutate >> Survive`, rồi `Finish`):
   - **Init:** baseline `-O3` vào population với fitness 1.0.
   - **Mỗi thế hệ:** tournament chọn parent, LLM mutate sinh 4 con, chạy `evaluate_asm` trên `search_tests`, rồi `survive`. Tổng cộng 3 thế hệ.
-- [ ] Fitness = `T_baseline / T_candidate`; candidate không hợp lệ có fitness −inf nhưng vẫn giữ feedback.
-- [ ] Mỗi candidate ghi lại `parent_ids`, `generation`, `prompt_id` và outcome vào `SearchTrace`.
-- [ ] (Tùy chọn) crossover dùng LLM với 2 parent.
+- [x] Fitness = `T_baseline / T_candidate`; candidate không hợp lệ có fitness −inf nhưng vẫn giữ feedback.
+- [x] Mỗi candidate ghi lại `parent_ids`, `generation`, `prompt_id` và outcome vào `SearchTrace`.
+- [ ] (Tùy chọn) crossover dùng LLM với 2 parent. Chưa làm.
 - **DoD:** chạy end-to-end trên ≥ 2 problem trong tập dev, tối đa 12 candidate, và trace đọc lại được.
+  - [x] Đã chạy trên problem 0 và 1 (đã merge thử T12 vào, LLM giả lập). Mỗi problem dùng 12 candidate, `check_trace` pass, đọc lại `traces.jsonl` được. Unit test nằm ở `tests/test_evolution.py`.
+  - [ ] Chạy với LLM thật, sau khi T12 merge.
+- **Cho T14, T15:** `methods/nodes.py` có store và node dùng chung. `Mutate` (charge budget → gọi LLM → `extract_asm` → `asm_hash` → `evaluate_asm`) tạo một `Candidate` cho mỗi phần tử của `shared["parents"]`; `Finish` chọn `best()` và ghi `SearchTrace`. Program có hash đã chấm thì dùng lại kết quả, không đo lại; bản sao của baseline được tính 1.0x.
+- **Chỗ tạm, đánh dấu `TODO(T#)`:** T9 thay `methods/prompt.py` (prompt `mutate_v0` và `format_feedback`). T6 thay `search_tests()` trong `methods/nodes.py`, hiện trả về toàn bộ `problem.tests`. T13 thay `final`/`fallback` trong `Finish`, hiện là kết quả search của candidate được chọn và `fallback=False`.
 
 **T14 · Implement best-of-N** · P0 · ⛔ T3, T9, T12
 - [ ] `methods/best_of_n/flow.py`: 12 mẫu độc lập từ baseline, không có feedback, chọn mẫu có fitness cao nhất.
@@ -264,8 +268,9 @@ class Budget:
 
 # methods/base.py: Protocol SearchMethod có đúng chữ ký của search(...) dưới đây
 # methods/<name>/flow.py (T10, T14, T15): NAME: str và search: SearchMethod
+# T10 thêm `seed`: Candidate.id và SearchTrace.seed cần seed. Runner (T16) truyền rng = random.Random(seed).
 def search(problem: Problem, llm: LLMClient, cfg: Config,
-           budget: Budget, rng: random.Random) -> SearchTrace: ...
+           budget: Budget, rng: random.Random, seed: int) -> SearchTrace: ...
 ```
 
 ```yaml
