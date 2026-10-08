@@ -47,7 +47,8 @@ def test_wrong_output_clips_the_failed_test():
 
 def test_child_of_parent_appends_feedback_without_replacing_root():
     problem = _problem()
-    parent = ("```assembly\nret\n```", EvalResult(7, Status.CRASH, detail="segfault"))
+    crashed = EvalResult(7, Status.CRASH, detail="segfault", failed_test=0)
+    parent = ("```assembly\nret\n```", crashed)
     messages, prompt_id = build_child_prompt(problem, parent, hint=None)
     assert prompt_id == EXPAND_PROMPT_ID
     assert messages[0]["content"] == "SUPERCODER PROMPT"
