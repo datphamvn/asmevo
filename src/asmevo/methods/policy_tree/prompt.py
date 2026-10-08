@@ -26,6 +26,12 @@ HINTS = (
 
 MAX_IO_CHARS = 1500
 
+_ABI = (
+    "Preserve the System V AMD64 ABI: integer arguments in rdi, rsi, rdx, rcx, r8, r9; "
+    "the return value in rax; callee-saved rbx, rbp, and r12-r15; 16-byte stack alignment "
+    "before a call. Do not rename global symbols.\n"
+)
+
 _ANSWER = "Answer with the complete program in a single ```assembly block."
 
 
@@ -72,7 +78,7 @@ def build_feedback(problem: Problem, result: EvalResult, hint: str | None = None
             )
     if hint:
         body += f"\nThis time take a different approach. {hint}\n"
-    return {"role": "user", "content": f"{body}\n{_ANSWER}"}
+    return {"role": "user", "content": f"{body}\n{_ABI}{_ANSWER}"}
 
 
 def build_child_prompt(problem: Problem, parent: tuple[str, EvalResult] | None,
