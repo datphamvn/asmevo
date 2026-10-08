@@ -1,11 +1,13 @@
-"""Figures for a finished run. Reads results.jsonl and does not rebuild or retime."""
+"""Figures and a summary table for a finished run. Does not rebuild or retime."""
 
 from __future__ import annotations
 
 import json
+import statistics
 from collections import Counter
 from pathlib import Path
 
+from asmevo.eval.report import summarize
 from asmevo.schemas import EvalResult, Generation, Status
 
 RESULTS = "results.jsonl"
@@ -30,8 +32,38 @@ def load_generations(run_dir: Path) -> list[Generation]:
     return [Generation.from_dict(json.loads(line)) for line in lines]
 
 
-def write_run_plots(run_dir: Path, out_dir: Path) -> list[Path]:
-    """Write status and speedup figures. Returns the paths created."""
+def format_run_summary(results: list[EvalResult], generations: list[Generation]) -> str:
+    """One text table: speedup, pass rates, and token use from ``summarize``."""
+    summary = summarize(results, generations)
+    correct_times = [r.candidate_mean_s for r in results if r.ok and r.candidate_mean_s is not None]
+    if correct_times:
+        median_s = statistics.median(correct_times)
+        spread_s = statistics.pstdev(correct_times) if len(correct_times) > 1 else 0.0
+        runtime = f"{median_s:.4f}s (pstdev {spread_s:.4f}s)"
+    else:
+        runtime = "n/a"
+    calls = summary["llm_calls"]
+    latency = "n/a" if calls == 0 else f"{summary['median_latency_s']:.2f}s"
+    return "\n".join([
+        f"problems:          {summary['problems']}",
+        f"geomean speedup:   {summary['geomean_speedup']:.4f}",
+        f"median speedup:    {summary['speedup_p50']:.4f}",
+        f"speedup p25–p75:   {summary['speedup_p25']:.4f}–{summary['speedup_p75']:.4f}",
+        f"build rate:        {summary['build_rate']:.1%}",
+        f"correct rate:      {summary['correct_rate']:.1%}",
+        f"improved rate:     {summary['improved_rate']:.1%}",
+        f"median runtime:    {runtime}",
+        f"llm calls:         {calls}",
+        f"input tokens:      {summary['input_tokens']}",
+        f"output tokens:     {summary['output_tokens']}",
+        f"reasoning tokens:  {summary['reasoning_tokens']}",
+        f"median latency:    {latency}",
+        f"status:            {summary['status_counts']}",
+    ])
+
+
+def write_run_plots(run_dir: Path, out_dir: Path) -> tuple[str, list[Path]]:
+    """Write the summary and figures. Returns the summary text and the paths created."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -39,14 +71,19 @@ def write_run_plots(run_dir: Path, out_dir: Path) -> list[Path]:
 
     results = load_results(run_dir)
     generations = load_generations(run_dir)
+    if not any(g.llm_calls for g in generations):
+        raise SystemExit(f"no LLM calls in {run_dir / GENERATIONS}; cannot summarize tokens")
     out_dir.mkdir(parents=True, exist_ok=True)
+    text = format_run_summary(results, generations)
+    summary_path = out_dir / "summary.txt"
+    summary_path.write_text(text + "\n")
     written = [
+        summary_path,
         _plot_status(results, out_dir / "status.png", plt),
         _plot_speedups(results, out_dir / "speedups.png", plt),
+        _plot_tokens(generations, out_dir / "tokens.png", plt),
     ]
-    if generations:
-        written.append(_plot_tokens(generations, out_dir / "tokens.png", plt))
-    return written
+    return text, written
 
 
 def _plot_status(results: list[EvalResult], path: Path, plt) -> Path:
@@ -64,17 +101,13 @@ def _plot_status(results: list[EvalResult], path: Path, plt) -> Path:
 
 
 def _plot_speedups(results: list[EvalResult], path: Path, plt) -> Path:
-    ordered = sorted(results, key=lambda r: r.problem_id)
-    labels = [str(r.problem_id) for r in ordered]
-    values = [r.speedup for r in ordered]
-    colors = ["#59a14f" if r.ok and r.speedup > 1 else "#4c78a8" if r.ok else "#e15759"
-              for r in ordered]
-    fig, ax = plt.subplots(figsize=(max(6, 0.35 * len(ordered)), 4))
-    ax.bar(labels, values, color=colors)
-    ax.axhline(1.0, color="#333333", linestyle="--", linewidth=1, label="gcc -O3")
-    ax.set_xlabel("problem id")
-    ax.set_ylabel("speedup (failures score 1x)")
-    ax.set_title("Speedup against gcc -O3")
+    values = [r.speedup for r in results]
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.hist(values, bins=min(20, max(5, len(values))), color="#4c78a8", edgecolor="white")
+    ax.axvline(1.0, color="#333333", linestyle="--", linewidth=1, label="gcc -O3")
+    ax.set_xlabel("speedup (failures score 1x)")
+    ax.set_ylabel("problems")
+    ax.set_title("Speedup distribution against gcc -O3")
     ax.legend()
     fig.tight_layout()
     fig.savefig(path, dpi=160)
@@ -83,13 +116,11 @@ def _plot_speedups(results: list[EvalResult], path: Path, plt) -> Path:
 
 
 def _plot_tokens(generations: list[Generation], path: Path, plt) -> Path:
-    ordered = sorted(generations, key=lambda g: g.problem_id)
-    labels = [str(g.problem_id) for g in ordered]
-    values = [sum(c.output_tokens for c in g.llm_calls) for g in ordered]
-    fig, ax = plt.subplots(figsize=(max(6, 0.35 * len(ordered)), 4))
-    ax.bar(labels, values, color="#f28e2b")
-    ax.set_xlabel("problem id")
-    ax.set_ylabel("output tokens")
+    values = [sum(c.output_tokens for c in g.llm_calls) for g in generations]
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.hist(values, bins=min(20, max(5, len(values))), color="#f28e2b", edgecolor="white")
+    ax.set_xlabel("output tokens")
+    ax.set_ylabel("problems")
     ax.set_title("LLM output tokens per problem")
     fig.tight_layout()
     fig.savefig(path, dpi=160)

@@ -199,7 +199,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         evaluate_run(cfg, args.run_dir)
     elif args.command == "plots":
         out = args.out or args.run_dir / "plots"
-        written = write_run_plots(args.run_dir, out)
+        text, written = write_run_plots(args.run_dir, out)
+        print(text)
         print("[plots] " + ", ".join(str(path) for path in written))
     else:
         out = args.out or ROOT / cfg.run.output_dir / f"curves-{time.strftime('%Y%m%d-%H%M%S')}.png"

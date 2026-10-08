@@ -54,8 +54,11 @@ def _generation(g: Generation) -> dict:
 
 def test_write_run_plots(tmp_path: Path):
     _write_run(tmp_path)
-    written = write_run_plots(tmp_path, tmp_path / "plots")
+    text, written = write_run_plots(tmp_path, tmp_path / "plots")
     names = {path.name for path in written}
-    assert names == {"status.png", "speedups.png", "tokens.png"}
+    assert names == {"summary.txt", "status.png", "speedups.png", "tokens.png"}
+    assert "geomean speedup:" in text
+    assert "improved rate:" in text
+    assert "output tokens:     25" in text
     for path in written:
         assert path.stat().st_size > 0
