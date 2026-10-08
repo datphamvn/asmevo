@@ -4,6 +4,7 @@
   uv run asmevo generate --method policy_tree          # tree search; Linux x86-64 only
   uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
   uv run asmevo curve runs/policy_tree-<timestamp>     # best of the first k calls; x86-64 only
+  uv run asmevo plots runs/<run>                      # figures from results.jsonl; any host
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from pathlib import Path
 from asmevo.config import ROOT, Config, load_config, load_dotenv
 from asmevo.data.dataset import Problem, load_test_set
 from asmevo.eval.curve import budget_curve, plot_curves
+from asmevo.eval.plots import write_run_plots
 from asmevo.eval.report import summarize
 from asmevo.eval.runner import evaluate, pin_work_cpus
 from asmevo.methods.policy_tree import flow as policy_tree
@@ -176,6 +178,10 @@ def build_parser() -> argparse.ArgumentParser:
     cv.add_argument("--ks", default="1,2,4,8,16,32",
                     type=lambda s: sorted({int(k) for k in s.split(",")}))
     cv.add_argument("--out", type=Path, help="plot path (default: runs/curves-<timestamp>.png)")
+
+    pl = sub.add_parser("plots", help="plot status, speedup, and tokens from a finished run")
+    pl.add_argument("run_dir", type=Path)
+    pl.add_argument("--out", type=Path, help="figure directory (default: <run_dir>/plots)")
     return p
 
 
@@ -191,6 +197,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         generate(cfg, args.method, run_dir)
     elif args.command == "evaluate":
         evaluate_run(cfg, args.run_dir)
+    elif args.command == "plots":
+        out = args.out or args.run_dir / "plots"
+        written = write_run_plots(args.run_dir, out)
+        print("[plots] " + ", ".join(str(path) for path in written))
     else:
         out = args.out or ROOT / cfg.run.output_dir / f"curves-{time.strftime('%Y%m%d-%H%M%S')}.png"
         curve_runs(cfg, args.run_dirs, args.ks, out)
