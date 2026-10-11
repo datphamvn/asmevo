@@ -38,3 +38,10 @@ policy_tree:
   max_repairs: 2            # repair attempts in a row before backtracking from a broken line
   patience: 32              # terminate after this many calls without a new best (= max_calls: never)
   min_gain: 0.005           # a speedup must beat its reference by 0.5% to count, not timing noise
+
+# refined_best_of_n samples in rounds of samples_per_round (>= max_calls: plain best-of-N).
+# Budget and min_gain as in policy_tree so their curves compare; `curve --ks 12` reads 12 calls.
+refined_best_of_n:
+  max_calls: 32             # LLM calls per problem; each candidate is built/tested/timed
+  samples_per_round: 4      # samples drawn from each round's prompt
+  min_gain: 0.005           # a round's best must beat the incumbent by 0.5% to replace it

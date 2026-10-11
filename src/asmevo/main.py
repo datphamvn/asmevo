@@ -2,6 +2,7 @@
 
   uv run asmevo generate --method single_call          # LLM calls; runs on any host
   uv run asmevo generate --method policy_tree          # tree search; Linux x86-64 only
+  uv run asmevo generate --method refined_best_of_n    # rounds of N samples; Linux x86-64 only
   uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
   uv run asmevo curve runs/policy_tree-<timestamp>     # best of the first k calls; x86-64 only
 """
@@ -23,6 +24,7 @@ from asmevo.eval.curve import budget_curve, plot_curves
 from asmevo.eval.report import summarize
 from asmevo.eval.runner import evaluate, pin_work_cpus
 from asmevo.methods.policy_tree import flow as policy_tree
+from asmevo.methods.refined_best_of_n import flow as refined_best_of_n
 from asmevo.methods.single_call import flow as single_call
 from asmevo.schemas import Generation
 from asmevo.utils.llm.client import OpenAICompatibleClient
@@ -31,8 +33,10 @@ from asmevo.utils.llm.client import OpenAICompatibleClient
 METHODS = {
     single_call.NAME: single_call.generate,
     policy_tree.NAME: policy_tree.generate,
+    refined_best_of_n.NAME: refined_best_of_n.generate,
 }
-EXEC_METHODS = {policy_tree.NAME}  # build/test/time candidates while generating
+# build/test/time candidates while generating
+EXEC_METHODS = {policy_tree.NAME, refined_best_of_n.NAME}
 
 CONFIG = "config.json"
 GENERATIONS = "generations.jsonl"
