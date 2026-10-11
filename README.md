@@ -37,6 +37,7 @@ llm:
 ```bash
 uv run asmevo generate --method single_call          # LLM calls only
 uv run asmevo generate --method policy_tree          # tree search
+uv run asmevo generate --method refined_best_of_n    # iterated best-of-n (ACCLAIM)
 uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time
 uv run asmevo curve runs/<run-a> runs/<run-b>        # speedup of the best in the first k calls
 ```
@@ -48,6 +49,17 @@ candidate is built, tested, and timed, a hand-written policy expands it (refine,
 broken), branches to a sibling with a new strategy hint, backtracks to the best node with room,
 or terminates after `policy_tree.patience` calls without a new best. It keeps the fastest
 correct candidate.
+
+`refined_best_of_n` reads "refined best-of-n" as ACCLAIM's iterated best-of-n
+(arXiv:2604.04238, Sec. 3.4): it samples in rounds of `refined_best_of_n.samples_per_round`,
+all with the same prompt. A round's fastest correct sample replaces the incumbent (at first the
+-O3 baseline) if it is more than `refined_best_of_n.min_gain` faster; the next round sees the
+incumbent with its feedback and a note on the last round's samples (each one's speedup or
+error, and the input and expected output of the tests they failed) or, while nothing beats -O3
+yet, the SuperCoder prompt with that note. Its first round is the SuperCoder prompt, and with
+`samples_per_round` at least `max_calls` its one round is plain best-of-N. It evaluates each
+distinct program once and scores a copy of -O3 as 1.0x without timing it. Read the 12-call
+point of a 32-call run with `curve --ks 12`.
 
 `generate` stops on the first failed API call; pass `--run-dir` to resume. Each run directory
 ends up with `generations.jsonl`, `results.jsonl`, and `summary.json`. Candidates that fail to
