@@ -1,0 +1,11 @@
+# LLM ablation: azure/anthropic/claude-sonnet-5-5 on the full test set at k = 16 calls per problem, with every other
+# setting as in the main runs. Use with: uv run asmevo --config configs/llm-sonnet55-k16.yaml ...
+
+llm:
+  model: azure/anthropic/claude-sonnet-5-5
+
+refinement_loop:
+  rounds: 16
+
+policy_tree:
+  max_calls: 16

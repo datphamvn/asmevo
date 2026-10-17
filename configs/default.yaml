@@ -47,3 +47,17 @@ policy_tree:
   max_repairs: 2            # repair attempts in a row before backtracking from a broken line
   patience: 32              # terminate after this many calls without a new best (= max_calls: never)
   min_gain: 0.005           # a speedup must beat its reference by 0.5% to count, not timing noise
+
+# AIDE's search policy (arXiv:2502.13138; aideml defaults for the three search settings)
+aide:
+  max_calls: 32             # LLM calls per problem; each candidate is built, tested, and timed
+  num_drafts: 5             # drafts from scratch before improving or debugging
+  debug_prob: 0.5           # chance of debugging a broken leaf instead of improving the best node
+  max_debug_depth: 3        # broken nodes this many debug steps deep are no longer debugged
+
+# Evolution of Heuristics (arXiv:2401.02051; EoH code defaults)
+eoh:
+  max_calls: 32             # LLM calls per problem; each candidate is built, tested, and timed
+  pop_size: 5               # population size; 2 * pop_size i1 calls make the first population
+  num_parents: 2            # parents of each e1/e2 crossover; m1/m2 mutate one
+  operators: [e1, e2, m1, m2]  # in turn, pop_size offspring each, then keep the best pop_size

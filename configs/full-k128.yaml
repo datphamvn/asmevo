@@ -1,0 +1,20 @@
+# Full test set at k = 128 LLM calls per problem for every budgeted method, with every other
+# setting as in configs/default.yaml. policy_tree never stops for patience (= max_calls), so
+# every method may spend the whole budget. Run one asmevo process at a time.
+# Use with: uv run asmevo --config configs/full-k128.yaml generate --method <method>
+
+best_of_n:
+  n: 128
+
+refinement_loop:
+  rounds: 128
+
+policy_tree:
+  max_calls: 128
+  patience: 128
+
+aide:
+  max_calls: 128
+
+eoh:
+  max_calls: 128

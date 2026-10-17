@@ -1,0 +1,11 @@
+# LLM ablation: nvidia/openai/gpt-oss-120b on the full test set at k = 16 calls per problem, with every other
+# setting as in the main runs. Use with: uv run asmevo --config configs/llm-gptoss120b-k16.yaml ...
+
+llm:
+  model: nvidia/openai/gpt-oss-120b
+
+refinement_loop:
+  rounds: 16
+
+policy_tree:
+  max_calls: 16

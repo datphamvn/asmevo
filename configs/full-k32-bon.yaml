@@ -1,0 +1,12 @@
+# Full test set at k = 32 LLM calls per problem for best_of_n, with the same settings as
+# configs/full-k32.yaml so it is comparable with the policy_tree and refinement_loop k = 32 runs.
+# Use with: uv run asmevo --config configs/full-k32-bon.yaml generate --method best_of_n
+
+best_of_n:
+  n: 32
+
+refinement_loop:
+  rounds: 32
+
+policy_tree:
+  max_calls: 32

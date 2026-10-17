@@ -76,6 +76,22 @@ class PolicyTreeConfig:
 
 
 @dataclass(frozen=True)
+class AideConfig:
+    max_calls: int
+    num_drafts: int
+    debug_prob: float
+    max_debug_depth: int
+
+
+@dataclass(frozen=True)
+class EohConfig:
+    max_calls: int
+    pop_size: int
+    num_parents: int
+    operators: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Config:
     dataset: DatasetConfig
     llm: LLMConfig
@@ -84,6 +100,8 @@ class Config:
     best_of_n: BestOfNConfig
     refinement_loop: RefinementLoopConfig
     policy_tree: PolicyTreeConfig
+    aide: AideConfig
+    eoh: EohConfig
 
 
 _SECTIONS = {
@@ -94,6 +112,8 @@ _SECTIONS = {
     "best_of_n": BestOfNConfig,
     "refinement_loop": RefinementLoopConfig,
     "policy_tree": PolicyTreeConfig,
+    "aide": AideConfig,
+    "eoh": EohConfig,
 }
 
 

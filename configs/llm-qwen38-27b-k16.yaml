@@ -1,0 +1,12 @@
+# LLM ablation: nvidia/qwen/qwen3.8-27b on the full test set at k = 16 calls per problem, with every other
+# setting as in the main runs.
+# Use with: uv run asmevo --config configs/llm-qwen38-27b-k16.yaml ...
+
+llm:
+  model: nvidia/qwen/qwen3.8-27b
+
+refinement_loop:
+  rounds: 16
+
+policy_tree:
+  max_calls: 16
