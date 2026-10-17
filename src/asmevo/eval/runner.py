@@ -5,14 +5,16 @@ Must run on Linux x86-64 (natively or in the docker image): the dataset assembly
 
 from __future__ import annotations
 
+import fcntl
 import functools
 import json
 import math
 import os
-import queue
+import signal
 import statistics
 import subprocess
 import tempfile
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -20,6 +22,8 @@ from pathlib import Path
 from asmevo.config import EvalConfig
 from asmevo.data.dataset import Problem, TestCase
 from asmevo.schemas import EvalResult, Generation, Status
+
+MAX_OUTPUT_BYTES = 1 << 20  # per test and stream; the largest expected stdout is under 10 KB
 
 
 def build(asm: str, workdir: Path, name: str, cfg: EvalConfig) -> tuple[Path | None, str]:
@@ -52,28 +56,39 @@ def outputs_match(actual: str, expected: str) -> bool:
 def check_tests(
     exe: Path, tests: tuple[TestCase, ...], cfg: EvalConfig
 ) -> tuple[Status, int | None, str]:
-    """Run every test under memory/CPU limits; stop at the first failure."""
+    """Run every test under memory/CPU/output limits; stop at the first failure.
+
+    Output goes to files capped at ``MAX_OUTPUT_BYTES``: a program printing in a loop until
+    the timeout would otherwise fill this process's memory with gigabytes of captured output.
+    """
     cpu_s = math.ceil(cfg.run_timeout_s) + 1
-    cmd = ["prlimit", f"--as={cfg.memory_limit_mb << 20}", f"--cpu={cpu_s}", "--", str(exe)]
+    cmd = ["prlimit", f"--as={cfg.memory_limit_mb << 20}", f"--cpu={cpu_s}",
+           f"--fsize={MAX_OUTPUT_BYTES}", "--", str(exe)]
+    out_path, err_path = exe.with_suffix(".stdout"), exe.with_suffix(".stderr")
     for i, test in enumerate(tests):
-        try:
-            proc = subprocess.run(
-                cmd,
-                input=test.stdin,
-                capture_output=True,
-                text=True,
-                errors="replace",
-                timeout=cfg.run_timeout_s,
-                cwd=exe.parent,
-            )
-        except subprocess.TimeoutExpired:
-            return Status.TIMEOUT, i, f"exceeded {cfg.run_timeout_s}s"
+        with out_path.open("wb") as out, err_path.open("wb") as err:
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    input=test.stdin,
+                    stdout=out,
+                    stderr=err,
+                    text=True,
+                    timeout=cfg.run_timeout_s,
+                    cwd=exe.parent,
+                )
+            except subprocess.TimeoutExpired:
+                return Status.TIMEOUT, i, f"exceeded {cfg.run_timeout_s}s"
+        stdout = out_path.read_text(errors="replace")
+        stderr = err_path.read_text(errors="replace")
+        if proc.returncode == -signal.SIGXFSZ:
+            return Status.WRONG_OUTPUT, i, f"printed more than {MAX_OUTPUT_BYTES} bytes"
         if proc.returncode < 0:
-            return Status.CRASH, i, f"killed by signal {-proc.returncode}: {proc.stderr[-500:]}"
-        if not outputs_match(proc.stdout, test.expected_stdout):
-            return Status.WRONG_OUTPUT, i, f"got {proc.stdout[:200]!r}"
+            return Status.CRASH, i, f"killed by signal {-proc.returncode}: {stderr[-500:]}"
+        if not outputs_match(stdout, test.expected_stdout):
+            return Status.WRONG_OUTPUT, i, f"got {stdout[:200]!r}"
         if proc.returncode != 0:  # hyperfine cannot time a program that exits non-zero
-            return Status.CRASH, i, f"exit status {proc.returncode}: {proc.stderr[-500:]}"
+            return Status.CRASH, i, f"exit status {proc.returncode}: {stderr[-500:]}"
     return Status.OK, None, ""
 
 
@@ -119,25 +134,29 @@ def pin_work_cpus() -> None:
     os.sched_setaffinity(0, cpu_layout()[1])
 
 
-@functools.cache
-def _timing_slots() -> queue.Queue[int]:
-    slots: queue.Queue[int] = queue.Queue()
-    for cpu in cpu_layout()[0]:
-        slots.put(cpu)
-    return slots
+TIMING_LOCKS = Path(tempfile.gettempdir()) / "asmevo-timing"
 
 
 @contextmanager
 def _timing_cpu(cfg: EvalConfig) -> Iterator[list[str]]:
-    """Command prefix that runs hyperfine alone on a free timing CPU, waiting for one."""
+    """Command prefix that runs hyperfine alone on a free timing CPU, waiting for one.
+
+    Each timing CPU is held through a lock file, so concurrent asmevo processes never share one.
+    """
     if not cfg.pin_cpus:
         yield []
         return
-    cpu = _timing_slots().get()
-    try:
-        yield ["taskset", "-c", str(cpu)]
-    finally:
-        _timing_slots().put(cpu)
+    TIMING_LOCKS.mkdir(exist_ok=True)
+    while True:
+        for cpu in cpu_layout()[0]:
+            with open(TIMING_LOCKS / f"cpu{cpu}.lock", "w") as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    continue
+                yield ["taskset", "-c", str(cpu)]
+                return
+        time.sleep(0.05)
 
 
 def measure(exes: list[Path], tests: tuple[TestCase, ...], cfg: EvalConfig) -> dict[Path, float]:
