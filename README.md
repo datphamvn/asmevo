@@ -40,6 +40,7 @@ uv run asmevo generate --method policy_tree          # tree search
 uv run asmevo generate --method refined_best_of_n    # iterated best-of-n (ACCLAIM)
 uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time
 uv run asmevo curve runs/<run-a> runs/<run-b>        # speedup of the best in the first k calls
+uv run asmevo plots runs/<run>                     # status, speedup, and token figures
 ```
 
 All but `single_call` generation need Linux x86-64 (natively or via `docker/`).
