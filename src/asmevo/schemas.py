@@ -60,9 +60,16 @@ class Generation:
 class EvalResult:
     problem_id: int
     status: Status
-    speedup: float = 1.0  # the protocol scores every non-OK candidate as the -O3 baseline
+    # baseline_median_s / candidate_median_s; the protocol scores every non-OK candidate as
+    # the -O3 baseline. Times are of one pass over the tests: the sum over tests of each
+    # test's median (or mean) run; stddev is the spread of such a pass (eval.runner.Timing).
+    speedup: float = 1.0
     baseline_mean_s: float | None = None
     candidate_mean_s: float | None = None
+    baseline_median_s: float | None = None
+    candidate_median_s: float | None = None
+    baseline_stddev_s: float | None = None
+    candidate_stddev_s: float | None = None
     failed_test: int | None = None
     dropped_tests: tuple[int, ...] = ()  # the -O3 baseline exceeds run_timeout_s on these
     detail: str = ""

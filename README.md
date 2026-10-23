@@ -49,6 +49,21 @@ uv run asmevo generate --method single_call          # LLM calls; any host
 uv run asmevo evaluate runs/single_call-<timestamp>  # build/test/time; Linux x86-64 only
 ```
 
+### Docker (Linux x86-64)
+
+Building, testing, and timing candidates needs Linux x86-64; the image pins the toolchain
+(gcc-12, binutils, hyperfine). Run from the repo root; the bind mount keeps runs and the
+dataset cache on the host:
+
+```bash
+docker build --platform linux/amd64 -f docker/Dockerfile -t asmevo .
+docker run --rm --platform linux/amd64 -v "$PWD":/work asmevo uv run asmevo evaluate runs/<run>
+docker run --rm --platform linux/amd64 -v "$PWD":/work asmevo uv run pytest  # incl. runner tests
+```
+
+On other hosts (e.g. Apple Silicon) Docker emulates x86-64: good for checking that the
+pipeline works, but timings and speedups measured there are meaningless.
+
 `generate` stops on the first failed API call; pass `--run-dir` to resume. Each run directory
 ends up with `generations.jsonl`, `results.jsonl`, and `summary.json`; every LLM call in
 `generations.jsonl` keeps its full prompt (`messages`) and `reply`. Candidates that fail to

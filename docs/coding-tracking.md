@@ -81,7 +81,7 @@ graph LR
 | 2 | **T12** | Implement an isolated runner | **P0** | ⬜ | | T2 | T10, T13, T14, T15 |
 | 2 | T3 | Implement budget tracking | P0 | ⬜ | | T2 | T4, T10, T14, T15 |
 | 2 | T9 | Implement mutation prompts and feedback | P0 | ⬜ | huynhvancuong20@gmail.com | T2, T8 | T10, T14, T15 |
-| 2 | T11 | Implement selection, elitism, and deduplication | P0 | ⬜ | | T2 | T4, T10 |
+| 2 | T11 | Implement selection, elitism, and deduplication | P0 | 🔵 | palasek182@gmail.com | T2 | T4, T10 |
 | 2 | T6 | Implement dataset splits | P1 | ⬜ | | T5 | T13, T16 |
 | 3 | **T10** | Implement the population model and candidate mutation | **P0** | 🔵 | minhqngo.work@gmail.com | T3, T9, T11, T12 | T4, T16 |
 | 3 | T14 | Implement best-of-N | P0 | ⛔ | | T3, T9, T12 | T16 |
@@ -131,14 +131,20 @@ Loader ghim HF revision và đọc đúng file parquet đã hash (`data/dataset.
 
 ### Wave 2 — sau khi T2 merge
 
-**T12 · Implement an isolated runner** · P0 · ⬜
+**T12 · Implement an isolated runner** · P0 · ✅
 Refactor `eval/runner.py`:
-- [ ] Tách hàm `evaluate_asm(problem, asm, tests, cfg) -> EvalResult` không phụ thuộc `Generation`, để cả 3 method gọi chung.
-- [ ] Cache kết quả build và test của baseline theo từng problem, tránh build lại cho mỗi candidate.
-- [ ] Mỗi candidate có một tempdir riêng; chạy bên trong Docker image cố định.
-- [ ] `measure`: bỏ `check=True` (binary lỗi khi đo thì trả về `Status.CRASH`, không làm dừng cả lượt evaluate) và bọc `prlimit` cả lúc đo.
-- [ ] Đo xen kẽ thật sự: chạy nhiều vòng và đổi thứ tự baseline/candidate giữa các vòng. Trả về median và stddev, không chỉ mean.
+- [x] Tách hàm `evaluate_asm(problem, asm, tests, cfg) -> EvalResult` không phụ thuộc `Generation`, để cả 3 method gọi chung.
+- [x] Cache kết quả build và test của baseline theo từng problem, tránh build lại cho mỗi candidate.
+- [x] Mỗi candidate có một tempdir riêng; chạy bên trong Docker image cố định.
+- [x] `measure`: bỏ `check=True` (binary lỗi khi đo thì trả về `Status.CRASH`, không làm dừng cả lượt evaluate) và bọc `prlimit` cả lúc đo.
+- [x] Đo xen kẽ thật sự: chạy nhiều vòng và đổi thứ tự baseline/candidate giữa các vòng. Trả về median và stddev, không chỉ mean.
 - **DoD:** một file assembly lỗi, crash hoặc lặp vô hạn chỉ làm hỏng đúng candidate đó, và process cha vẫn chạy tiếp.
+- **Cho T9, T10, T13, T14, T15, T16:**
+  - Đo theo ABBA cho từng test input: baseline rồi candidate, sau đó candidate rồi baseline, mỗi lượt một nửa `timing_repeats`. Mỗi test chỉ tốn 2 lần gọi hyperfine, vì dataset có trung vị 103 test/problem.
+  - `speedup` = tổng median theo test của baseline / của candidate. `EvalResult` có thêm `*_median_s` và `*_stddev_s` (độ lệch của một lượt chạy hết các test).
+  - Candidate phải giữ exit code của baseline; khác thì `WRONG_OUTPUT`. Output ghi ra file, giới hạn 64 MB (`--fsize`), tắt core dump. Mỗi lần chạy nằm trong process group riêng và cả group bị kill sau đó, nên không còn process mồ côi. Môi trường chạy cố định và tối thiểu.
+  - `failed_test` và `dropped_tests` là vị trí trong `tests` truyền vào `evaluate_asm`, nên T9 lấy input của test fail bằng `tests[result.failed_test]`.
+  - Test: `tests/test_runner.py` (15 test cần Linux x86-64, trong đó có test speedup đúng chiều và test baseline có exit code khác 0; chạy bằng lệnh Docker trong README). Trên Apple Silicon, Docker chạy giả lập nên chỉ dùng để kiểm tra pipeline chạy đúng, không dùng số đo thời gian.
 
 **T3 · Implement budget tracking** · P0 · ✅
 - [x] `search/budget.py`: class `Budget` tính phí mỗi lần sinh candidate (gồm cả repair và candidate lỗi), tối đa `search.max_candidates = 12`.
@@ -193,8 +199,8 @@ Refactor `eval/runner.py`:
 - [ ] `methods/refine/flow.py`: đi theo một hướng duy nhất qua 12 bước. Mỗi bước sửa candidate tốt nhất hiện có (hoặc candidate vừa sinh) theo feedback, và giữ lại candidate tốt nhất.
 
 **T13 · Implement timeouts, resource limits, and correctness checks** · P1 · ⛔ T6, T12
-Đã có timeout, giới hạn CPU/bộ nhớ qua `prlimit` và so sánh output (`runner.py`). Còn thiếu:
-- [ ] Thêm giới hạn `--fsize` và `--nproc`.
+Đã có timeout, giới hạn CPU/bộ nhớ/kích thước file qua `prlimit`, so sánh output và exit code với baseline (`runner.py`, T12). Còn thiếu:
+- [ ] Thêm giới hạn `--nproc` (`--fsize` và `--core=0` đã có từ T12, xem `_limits` trong `eval/runner.py`).
 - [ ] **Final check:** chạy candidate được chọn trên `heldout_tests`. Nếu sai, hoặc speedup không vượt ngưỡng nhiễu đo, thì fallback về baseline (1×) và ghi lý do riêng.
 - [ ] Phân loại lỗi để làm RQ3: assembler error, link error, ABI hoặc crash (theo signal), wrong output, timeout.
 - **DoD:** `EvalResult` cuối cùng có cả speedup trên search inputs và trên held-out, kèm cờ fallback.

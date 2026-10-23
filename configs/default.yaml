@@ -24,10 +24,12 @@ eval:
   compile_timeout_s: 30
   run_timeout_s: 10
   memory_limit_mb: 1024
-  hyperfine: hyperfine      # timing tool; per test input it discards 3 runs, averages 10
-  warmup_runs: 3
-  timing_repeats: 10
-  workers: 8                # parallel problems; each times baseline and candidate interleaved
+  hyperfine: hyperfine      # timing tool
+  warmup_runs: 3            # discarded runs per program and test input
+  timing_repeats: 10        # timed runs per program and test input, in ABBA order (half with
+                            # the baseline first, half with the candidate first); speedup is
+                            # the ratio of the summed per-test median times
+  workers: 8                # parallel problems
 
 run:
   workers: 16               # concurrent LLM calls
