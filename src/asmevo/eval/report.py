@@ -1,15 +1,36 @@
-"""Aggregate per-problem results into the summary reported for each method."""
+"""Run files and the summary reported for each method."""
 
 from __future__ import annotations
 
+import json
 import math
 import statistics
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from asmevo.schemas import EvalResult, Generation, Status
+
+GENERATIONS = "generations.jsonl"
+RESULTS = "results.jsonl"
+
+
+def load_generations(run_dir: Path) -> dict[int, Generation]:
+    """Generations by problem id; empty for a run that has not generated any yet."""
+    path = run_dir / GENERATIONS
+    if not path.exists():
+        return {}
+    gens = (Generation.from_dict(json.loads(line)) for line in path.read_text().splitlines())
+    return {g.problem_id: g for g in gens}
+
+
+def load_results(run_dir: Path) -> list[EvalResult]:
+    path = run_dir / RESULTS
+    if not path.is_file():
+        raise SystemExit(f"no {RESULTS} in {run_dir}; run evaluate first")
+    return [EvalResult.from_dict(json.loads(line)) for line in path.read_text().splitlines()]
 
 
 def summarize(results: list[EvalResult], generations: list[Generation]) -> dict[str, Any]:
@@ -46,5 +67,6 @@ def summarize(results: list[EvalResult], generations: list[Generation]) -> dict[
         "input_tokens": sum(c.input_tokens for c in calls),
         "output_tokens": sum(c.output_tokens for c in calls),
         "reasoning_tokens": sum(c.reasoning_tokens for c in calls),
+        "cost_usd": sum(c.cost_usd for c in calls),
         "median_latency_s": statistics.median(c.latency_s for c in calls),
     }

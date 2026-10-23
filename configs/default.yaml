@@ -4,13 +4,17 @@ dataset:
   problem_ids: null         # or a list of problem ids to run on only those
 
 llm:
+  provider: openai          # openai (Responses API) | fptcloud (Chat Completions)
   base_url: https://api.openai.com/v1
+  api_key_env: OPENAI_API_KEY
   model: gpt-6-luna
-  reasoning_mode: standard
-  reasoning_effort: medium
+  reasoning_mode: standard  # Responses API only; ignored by fptcloud
+  reasoning_effort: medium  # null to omit it, e.g. for models without reasoning
   max_output_tokens: 32768
   timeout_s: 1800
-  max_retries: 5
+  max_retries: 5            # SDK retries connection errors
+  cost_per_1k_input: null   # USD per 1k tokens; required (0.0 if free) so cost is never a silent $0
+  cost_per_1k_output: null
 
 # Build/test/time against the -O3 baseline (Linux x86-64 only). Keep identical across the
 # methods being compared; each run records the values it used in config.json.
@@ -21,8 +25,9 @@ eval:
   run_timeout_s: 10
   memory_limit_mb: 1024
   hyperfine: hyperfine      # timing tool
-  warmup_runs: 3            # discarded runs per test input
-  timing_repeats: 10        # timed runs per test input
+  warmup_runs: 3            # discarded runs per program and test input
+  timing_repeats: 10        # timed runs per program and test input (rounded up to even with
+                            # balanced_order); speedup is the ratio of the summed per-test stats
   timing_stat: median       # of the timed runs per test (SuperCoder uses mean)
   balanced_order: true      # discarded block, then ABBA, so neither program is timed first
   pin_cpus: true            # time alone on one thread per performance core; work elsewhere
@@ -32,16 +37,48 @@ run:
   workers: 16               # concurrent LLM calls
   output_dir: runs
 
-policy_tree:
-  max_calls: 32             # LLM calls per problem at most; each candidate is built/tested/timed
-  max_children: 4           # children per node
-  max_repairs: 2            # repair attempts in a row before backtracking from a broken line
-  patience: 32              # terminate after this many calls without a new best (= max_calls: never)
-  min_gain: 0.005           # a speedup must beat its reference by 0.5% to count, not timing noise
+# Same budget for every search method so RQ2 compares them fairly.
+search:
+  max_candidates: 12        # LLM-made candidates per (problem, seed), repairs and failures included
+  population_size: 4        # evolution: baseline + best valid candidates
+  offspring_per_generation: 4
+  generations: 3
+  tournament_size: 2
+  seeds: [0, 1, 2]
+
+split:
+  seed: 0
+  dev_fraction: 0.2         # problems used to tune prompts/config; the rest is the test split
+  heldout_fraction: 0.3     # per problem, test inputs kept for the final check only
 
 # refined_best_of_n samples in rounds of samples_per_round (>= max_calls: plain best-of-N).
-# Budget and min_gain as in policy_tree so their curves compare; `curve --ks 12` reads 12 calls.
+# `curve --ks 12` reads the 12-call point of a longer run.
 refined_best_of_n:
   max_calls: 32             # LLM calls per problem; each candidate is built/tested/timed
   samples_per_round: 4      # samples drawn from each round's prompt
   min_gain: 0.005           # a round's best must beat the incumbent by 0.5% to replace it
+
+refinement_loop:
+  rounds: 4                 # LLM calls per problem; each candidate is built, tested, and timed
+
+# AIDE's search policy (arXiv:2502.13138; aideml defaults for the three search settings)
+aide:
+  max_calls: 32             # LLM calls per problem; each candidate is built, tested, and timed
+  num_drafts: 5             # drafts from scratch before improving or debugging
+  debug_prob: 0.5           # chance of debugging a broken leaf instead of improving the best node
+  max_debug_depth: 3        # broken nodes this many debug steps deep are no longer debugged
+
+# Evolution of Heuristics (arXiv:2401.02051; EoH code defaults)
+eoh:
+  max_calls: 32             # LLM calls per problem; each candidate is built, tested, and timed
+  pop_size: 5               # population size; 2 * pop_size i1 calls make the first population
+  num_parents: 2            # parents of each e1/e2 crossover; m1/m2 mutate one
+  operators: [e1, e2, m1, m2]  # in turn, pop_size offspring each, then keep the best pop_size
+
+# AsmGraft: REx Thompson sampling over nodes, then discounted Thompson sampling over arms
+asmgraft:
+  max_calls: 32             # LLM calls per problem; each candidate is built, tested, and timed
+  max_repairs: 2            # repairs in a row of a broken latest candidate (R)
+  min_gain: 0.005           # a pull is rewarded if its child beats the reference by 0.5% (delta)
+  rex_c: 5.0                # REx constant of the node bandit (C)
+  discount: 0.95            # role-bandit posteriors decay toward Beta(1, 1) by this (gamma)

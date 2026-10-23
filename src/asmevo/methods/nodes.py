@@ -1,4 +1,6 @@
-"""PocketFlow store and nodes shared by every method.
+"""PocketFlow store and nodes shared by the methods that return a ``Generation`` (single_call,
+refined_best_of_n, refinement_loop, aide, eoh, asmgraft); ``methods/search_nodes.py`` holds
+those of the search methods.
 
 Every method is a ``pocketflow.Flow`` over one shared dict made by ``new_store``:
 
@@ -49,12 +51,11 @@ def best_round(rounds: list[EvalResult]) -> int:
 
 def candidate(shared: Store, i: int) -> Generation:
     """``Generation`` holding candidate ``i`` and only the LLM call that produced it."""
-    reply, asm = shared["candidates"][i]
+    _, asm = shared["candidates"][i]
     return Generation(
         problem_id=shared["problem"].id,
         method=shared["method"],
         asm=asm,
-        reply=reply,
         llm_calls=(shared["calls"][i],),
     )
 

@@ -24,13 +24,18 @@ class DatasetConfig:
 
 @dataclass(frozen=True)
 class LLMConfig:
+    provider: str  # a key of asmevo.utils.llm.client.PROVIDERS
     base_url: str
+    api_key_env: str  # environment variable (or .env key) holding the API key
     model: str
-    reasoning_mode: str
-    reasoning_effort: str
+    reasoning_mode: str | None
+    reasoning_effort: str | None
     max_output_tokens: int
     timeout_s: float
     max_retries: int
+    # USD per 1k tokens. null fails fast instead of silently reporting $0; use 0.0 if free.
+    cost_per_1k_input: float | None
+    cost_per_1k_output: float | None
 
 
 @dataclass(frozen=True)
@@ -48,6 +53,10 @@ class EvalConfig:
     pin_cpus: bool
     workers: int
 
+    def __post_init__(self) -> None:
+        if self.timing_stat not in ("mean", "median"):
+            raise ValueError(f"eval.timing_stat must be mean or median, got {self.timing_stat!r}")
+
 
 @dataclass(frozen=True)
 class RunConfig:
@@ -56,12 +65,32 @@ class RunConfig:
 
 
 @dataclass(frozen=True)
-class PolicyTreeConfig:
-    max_calls: int
-    max_children: int
-    max_repairs: int
-    patience: int
-    min_gain: float
+class SearchConfig:
+    max_candidates: int  # LLM-made candidates per (problem, seed), repairs and failures included
+    population_size: int
+    offspring_per_generation: int
+    generations: int
+    tournament_size: int
+    seeds: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if self.generations * self.offspring_per_generation > self.max_candidates:
+            raise ValueError("search: generations * offspring_per_generation exceeds "
+                             "max_candidates")
+        if not 1 <= self.tournament_size <= self.population_size:
+            raise ValueError("search: tournament_size must be in [1, population_size]")
+
+
+@dataclass(frozen=True)
+class SplitConfig:
+    seed: int
+    dev_fraction: float  # problems for tuning prompts/config; the rest is the test split
+    heldout_fraction: float  # per problem, test inputs kept out of search for the final check
+
+    def __post_init__(self) -> None:
+        for name in ("dev_fraction", "heldout_fraction"):
+            if not 0 < getattr(self, name) < 1:
+                raise ValueError(f"split.{name} must be in (0, 1)")
 
 
 @dataclass(frozen=True)
@@ -82,13 +111,57 @@ class RefinedBestOfNConfig:
 
 
 @dataclass(frozen=True)
+class RefinementLoopConfig:
+    rounds: int
+
+
+@dataclass(frozen=True)
+class AideConfig:
+    max_calls: int
+    num_drafts: int
+    debug_prob: float
+    max_debug_depth: int
+
+
+@dataclass(frozen=True)
+class EohConfig:
+    max_calls: int
+    pop_size: int
+    num_parents: int
+    operators: tuple[str, ...]  # applied in turn after the i1 seeds
+
+    def __post_init__(self) -> None:
+        if not self.operators or set(self.operators) - {"e1", "e2", "m1", "m2"}:
+            raise ValueError("eoh.operators must be a non-empty list of e1, e2, m1, m2, "
+                             f"got {list(self.operators)}")
+
+
+@dataclass(frozen=True)
+class AsmGraftConfig:
+    max_calls: int
+    max_repairs: int  # repairs in a row of a broken latest candidate (R)
+    min_gain: float  # a pull is rewarded if its child beats the reference by this much (delta)
+    rex_c: float  # REx constant of the node bandit (C)
+    discount: float  # posterior decay of the role bandit, in (0, 1] (gamma)
+
+    def __post_init__(self) -> None:
+        if not 0 < self.discount <= 1:
+            raise ValueError(f"asmgraft.discount must be in (0, 1], got {self.discount}")
+
+
+@dataclass(frozen=True)
 class Config:
     dataset: DatasetConfig
     llm: LLMConfig
     eval: EvalConfig
     run: RunConfig
-    policy_tree: PolicyTreeConfig
+    search: SearchConfig
+    split: SplitConfig
     refined_best_of_n: RefinedBestOfNConfig
+    refinement_loop: RefinementLoopConfig
+    aide: AideConfig
+    eoh: EohConfig
+    asmgraft: AsmGraftConfig
 
 
 _SECTIONS = {
@@ -96,8 +169,13 @@ _SECTIONS = {
     "llm": LLMConfig,
     "eval": EvalConfig,
     "run": RunConfig,
-    "policy_tree": PolicyTreeConfig,
+    "search": SearchConfig,
+    "split": SplitConfig,
     "refined_best_of_n": RefinedBestOfNConfig,
+    "refinement_loop": RefinementLoopConfig,
+    "aide": AideConfig,
+    "eoh": EohConfig,
+    "asmgraft": AsmGraftConfig,
 }
 
 

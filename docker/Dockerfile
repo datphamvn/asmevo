@@ -2,10 +2,15 @@
 FROM --platform=linux/amd64 ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+# gcc-11 is Ubuntu 22.04's default gcc, the one that built the dataset's baseline_asm
+# (.ident "GCC: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0").
+ARG GCC_VERSION=11.4.0
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc-12 binutils libc6-dev make ca-certificates time curl \
+    && apt-get install -y --no-install-recommends gcc-11 binutils libc6-dev make ca-certificates time curl \
     && rm -rf /var/lib/apt/lists/* \
-    && ln -sf /usr/bin/gcc-12 /usr/local/bin/gcc
+    && ln -sf /usr/bin/gcc-11 /usr/local/bin/gcc \
+    && test "$(gcc -dumpfullversion)" = "${GCC_VERSION}" \
+    && gcc --version | head -1
 
 ARG HYPERFINE=v1.20.0
 RUN curl -fsSL https://github.com/sharkdp/hyperfine/releases/download/${HYPERFINE}/hyperfine-${HYPERFINE}-x86_64-unknown-linux-musl.tar.gz \

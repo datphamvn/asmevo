@@ -2,34 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import statistics
 from collections import Counter
 from pathlib import Path
 
-from asmevo.eval.report import summarize
+from asmevo.eval.report import GENERATIONS, load_generations, load_results, summarize
 from asmevo.schemas import EvalResult, Generation, Status
-
-RESULTS = "results.jsonl"
-GENERATIONS = "generations.jsonl"
-
-
-def load_results(run_dir: Path) -> list[EvalResult]:
-    path = run_dir / RESULTS
-    if not path.is_file():
-        raise SystemExit(f"no {RESULTS} in {run_dir}; run evaluate first")
-    lines = [line for line in path.read_text().splitlines() if line.strip()]
-    if not lines:
-        raise SystemExit(f"{path} is empty")
-    return [EvalResult.from_dict(json.loads(line)) for line in lines]
-
-
-def load_generations(run_dir: Path) -> list[Generation]:
-    path = run_dir / GENERATIONS
-    if not path.is_file():
-        return []
-    lines = [line for line in path.read_text().splitlines() if line.strip()]
-    return [Generation.from_dict(json.loads(line)) for line in lines]
 
 
 def format_run_summary(results: list[EvalResult], generations: list[Generation]) -> str:
@@ -38,12 +16,9 @@ def format_run_summary(results: list[EvalResult], generations: list[Generation])
     correct_times = [r.candidate_mean_s for r in results if r.ok and r.candidate_mean_s is not None]
     if correct_times:
         median_s = statistics.median(correct_times)
-        spread_s = statistics.pstdev(correct_times) if len(correct_times) > 1 else 0.0
-        runtime = f"{median_s:.4f}s (pstdev {spread_s:.4f}s)"
+        runtime = f"{median_s:.4f}s (pstdev {statistics.pstdev(correct_times):.4f}s)"
     else:
         runtime = "n/a"
-    calls = summary["llm_calls"]
-    latency = "n/a" if calls == 0 else f"{summary['median_latency_s']:.2f}s"
     return "\n".join([
         f"problems:          {summary['problems']}",
         f"geomean speedup:   {summary['geomean_speedup']:.4f}",
@@ -53,11 +28,11 @@ def format_run_summary(results: list[EvalResult], generations: list[Generation])
         f"correct rate:      {summary['correct_rate']:.1%}",
         f"improved rate:     {summary['improved_rate']:.1%}",
         f"median runtime:    {runtime}",
-        f"llm calls:         {calls}",
+        f"llm calls:         {summary['llm_calls']}",
         f"input tokens:      {summary['input_tokens']}",
         f"output tokens:     {summary['output_tokens']}",
         f"reasoning tokens:  {summary['reasoning_tokens']}",
-        f"median latency:    {latency}",
+        f"median latency:    {summary['median_latency_s']:.2f}s",
         f"status:            {summary['status_counts']}",
     ])
 
@@ -70,7 +45,7 @@ def write_run_plots(run_dir: Path, out_dir: Path) -> tuple[str, list[Path]]:
     import matplotlib.pyplot as plt
 
     results = load_results(run_dir)
-    generations = load_generations(run_dir)
+    generations = list(load_generations(run_dir).values())
     if not any(g.llm_calls for g in generations):
         raise SystemExit(f"no LLM calls in {run_dir / GENERATIONS}; cannot summarize tokens")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -94,10 +69,7 @@ def _plot_status(results: list[EvalResult], path: Path, plt) -> Path:
     ax.barh(labels, values, color="#4c78a8")
     ax.set_xlabel("problems")
     ax.set_title("Evaluation outcomes")
-    fig.tight_layout()
-    fig.savefig(path, dpi=160)
-    plt.close(fig)
-    return path
+    return _save(fig, path, plt)
 
 
 def _plot_speedups(results: list[EvalResult], path: Path, plt) -> Path:
@@ -109,10 +81,7 @@ def _plot_speedups(results: list[EvalResult], path: Path, plt) -> Path:
     ax.set_ylabel("problems")
     ax.set_title("Speedup distribution against gcc -O3")
     ax.legend()
-    fig.tight_layout()
-    fig.savefig(path, dpi=160)
-    plt.close(fig)
-    return path
+    return _save(fig, path, plt)
 
 
 def _plot_tokens(generations: list[Generation], path: Path, plt) -> Path:
@@ -122,6 +91,10 @@ def _plot_tokens(generations: list[Generation], path: Path, plt) -> Path:
     ax.set_xlabel("output tokens")
     ax.set_ylabel("problems")
     ax.set_title("LLM output tokens per problem")
+    return _save(fig, path, plt)
+
+
+def _save(fig, path: Path, plt) -> Path:
     fig.tight_layout()
     fig.savefig(path, dpi=160)
     plt.close(fig)

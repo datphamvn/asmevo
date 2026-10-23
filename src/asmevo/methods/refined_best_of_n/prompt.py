@@ -8,14 +8,14 @@ number of rounds.
 from __future__ import annotations
 
 from asmevo.data.dataset import Problem
-from asmevo.methods.policy_tree.prompt import _clip, _failed_test, build_child_prompt
+from asmevo.methods.feedback import build_child_prompt, clip, failed_test
 from asmevo.schemas import EvalResult, Status
 from asmevo.utils.llm.client import Message
 
 REFINE_PROMPT_ID = "rbon_refine"
 RETRY_PROMPT_ID = "rbon_retry"
 
-# the policy tree's explanation of a reply without assembly
+# the feedback prompts' explanation of a reply without assembly
 _INCOMPLETE = ("A response status of 'incomplete' means your reply hit the output token limit, "
                "so be more concise.")
 
@@ -27,23 +27,23 @@ def _outcome(result: EvalResult, kept: bool) -> str:
             return f"correct, {speed}: the program above"
         return f"correct but {speed}" + (f" ({result.detail})" if result.detail else "")
     test = "" if result.failed_test is None else f" on test {result.failed_test}"
-    detail = _clip(result.detail.strip()).replace("\n", "\n  ")  # indented under its line
+    detail = clip(result.detail.strip()).replace("\n", "\n  ")  # indented under its line
     return f"{result.status.value}{test}" + (f": {detail}" if detail else "")
 
 
 def build_note(problem: Problem, results: list[EvalResult], kept: int | None, baseline: bool,
                min_gain: float) -> str:
     """One line per sample of a round: its speedup if correct, else its status and clipped
-    detail, then the stdin and expected stdout of each test a sample failed, as the policy tree
-    shows them. ``kept`` is the sample that became the incumbent, if any; ``baseline`` says
+    detail, then the stdin and expected stdout of each test a sample failed, as the feedback
+    prompts show them. ``kept`` is the sample that became the incumbent, if any; ``baseline`` says
     whether the incumbent is still the -O3 program."""
     lines = [f"Your last {len(results)} {'attempt' if len(results) == 1 else 'attempts'}:"]
     lines += [f"- attempt {j + 1}: {_outcome(r, j == kept)}" for j, r in enumerate(results)]
     if any(r.status is Status.NO_ASM for r in results):
         lines.append(f"\n{_INCOMPLETE}")
-    failed = {r.failed_test: r for r in results if r.failed_test is not None}  # once per test
+    failed = dict.fromkeys(r.failed_test for r in results if r.failed_test is not None)
     if failed:
-        lines.append("\n" + "".join(_failed_test(problem, r) for r in failed.values()).rstrip())
+        lines.append("\n" + "".join(failed_test(problem.tests, i) for i in failed).rstrip())
     if kept is None:
         than = "gcc -O3" if baseline else "the program above"
         lines.append(f"\nNo correct attempt was more than {min_gain:.1%} faster than {than}.")
@@ -57,7 +57,7 @@ def build_round_prompt(problem: Problem, incumbent: tuple[str, EvalResult] | Non
     if incumbent is None:
         content = f"{note}\n\n{problem.standard_prompt}"
         return [{"role": "user", "content": content}], RETRY_PROMPT_ID
-    messages, _ = build_child_prompt(problem, incumbent, None)
+    messages = build_child_prompt(problem, incumbent, None)
     feedback = messages[-1]
     messages[-1] = {**feedback, "content": f"{note}\n\n{feedback['content']}"}
     return messages, REFINE_PROMPT_ID
