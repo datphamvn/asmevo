@@ -17,11 +17,12 @@ from asmevo.utils.llm.client import LLMClient
 
 class SearchMethod(Protocol):
     def __call__(self, problem: Problem, llm: LLMClient, cfg: Config,
-                 budget: Budget, rng: random.Random) -> SearchTrace:
+                 budget: Budget, rng: random.Random, seed: int) -> SearchTrace:
         """Search for a faster version of ``problem.baseline_asm``.
 
         Calls ``budget.charge()`` before each LLM-made candidate, draws all randomness from
         ``rng``, and records every candidate (failed ones included) in the trace. The runner
-        passes ``budget.guard(llm)`` as ``llm``, so an uncharged model call raises.
+        passes ``budget.guard(llm)`` as ``llm``, so an uncharged model call raises, and
+        ``random.Random(seed)`` as ``rng``; ``seed`` goes into the candidate ids and the trace.
         """
         ...

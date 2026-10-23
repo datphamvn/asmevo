@@ -14,7 +14,8 @@ llm_opt/
 └── src/asmevo/
     ├── main.py             # entry point
     ├── data/               # test set: `val` split of LLM4Code/llm_superoptimizer_ds (200 programs)
-    ├── methods/            # one folder per method, holding its flow and prompt
+    ├── methods/            # one folder per method, holding its flow and prompt; nodes.py and
+    │                       #   prompt.py at this level hold the PocketFlow nodes they share
     ├── eval/               # build, test, and time candidates against gcc -O3
     └── utils/
         └── llm/            # LLM clients: OpenAI Responses API, FPT Cloud (Chat Completions)
