@@ -9,7 +9,7 @@ import pytest
 from asmevo.config import load_config
 from asmevo.data.dataset import Problem
 from asmevo.data.dataset import TestCase as Case
-from asmevo.methods import nodes
+from asmevo.methods import search_nodes as nodes
 from asmevo.methods.evolution.flow import NAME, search
 from asmevo.methods.prompt import MUTATE_PROMPT_ID
 from asmevo.methods.single_call.prompt import PROMPT_ID as BASELINE_PROMPT_ID

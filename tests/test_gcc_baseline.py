@@ -85,7 +85,8 @@ int main(void) {
 def eval_cfg() -> EvalConfig:
     return EvalConfig(cc=CC or "gcc", link_flags=("-lm",), compile_timeout_s=30,
                       run_timeout_s=5, memory_limit_mb=512, hyperfine="hyperfine",
-                      warmup_runs=1, timing_repeats=2, workers=1)
+                      warmup_runs=1, timing_repeats=2, timing_stat="median",
+                      balanced_order=True, pin_cpus=False, workers=1)
 
 
 def problem(c_code: str = C_CODE, *, baseline_asm: str | None = None) -> Problem:

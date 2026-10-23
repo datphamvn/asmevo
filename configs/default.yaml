@@ -1,7 +1,7 @@
 dataset:
   cache_dir: data/cache
   limit: null               # set an int to run on the first N problems only
-
+  problem_ids: null         # or a list of problem ids to run on only those
 
 llm:
   provider: openai          # openai (Responses API) | fptcloud (Chat Completions)
@@ -26,10 +26,12 @@ eval:
   memory_limit_mb: 1024
   hyperfine: hyperfine      # timing tool
   warmup_runs: 3            # discarded runs per program and test input
-  timing_repeats: 10        # timed runs per program and test input, in ABBA order (half with
-                            # the baseline first, half with the candidate first); speedup is
-                            # the ratio of the summed per-test median times
-  workers: 8                # parallel problems
+  timing_repeats: 10        # timed runs per program and test input (rounded up to even with
+                            # balanced_order); speedup is the ratio of the summed per-test stats
+  timing_stat: median       # of the timed runs per test (SuperCoder uses mean)
+  balanced_order: true      # discarded block, then ABBA, so neither program is timed first
+  pin_cpus: true            # time alone on one thread per performance core; work elsewhere
+  workers: 8                # parallel problems; with pin_cpus, timing waits for a free CPU
 
 run:
   workers: 16               # concurrent LLM calls
@@ -48,3 +50,17 @@ split:
   seed: 0
   dev_fraction: 0.2         # problems used to tune prompts/config; the rest is the test split
   heldout_fraction: 0.3     # per problem, test inputs kept for the final check only
+
+policy_tree:
+  max_calls: 32             # LLM calls per problem at most; each candidate is built/tested/timed
+  max_children: 4           # children per node
+  max_repairs: 2            # repair attempts in a row before backtracking from a broken line
+  patience: 32              # terminate after this many calls without a new best (= max_calls: never)
+  min_gain: 0.005           # a speedup must beat its reference by 0.5% to count, not timing noise
+
+# refined_best_of_n samples in rounds of samples_per_round (>= max_calls: plain best-of-N).
+# Budget and min_gain as in policy_tree so their curves compare; `curve --ks 12` reads 12 calls.
+refined_best_of_n:
+  max_calls: 32             # LLM calls per problem; each candidate is built/tested/timed
+  samples_per_round: 4      # samples drawn from each round's prompt
+  min_gain: 0.005           # a round's best must beat the incumbent by 0.5% to replace it

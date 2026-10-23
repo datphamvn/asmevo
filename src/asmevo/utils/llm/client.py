@@ -21,6 +21,16 @@ from asmevo.schemas import LLMCall
 Message = dict[str, str]  # {"role": "system" | "user" | "assistant", "content": ...}
 
 
+def reasoning_tokens(usage: object, details_field: str) -> int:
+    """Reasoning tokens in ``usage.<details_field>``.
+
+    Some OpenAI-compatible endpoints omit the details. Those calls still count; reasoning
+    tokens are recorded as zero.
+    """
+    details = getattr(usage, details_field, None)
+    return getattr(details, "reasoning_tokens", 0) or 0
+
+
 class LLMClient(Protocol):
     def complete(self, messages: list[Message], *, prompt_id: str) -> tuple[str, LLMCall]:
         """Return the model's text reply and a record of the call (prompt, reply, tokens,
@@ -105,7 +115,6 @@ class OpenAICompatibleClient(_OpenAISDKClient):
             raise RuntimeError(f"response {resp.id} has no usage; cannot account tokens")
 
         usage = resp.usage
-        details = usage.output_tokens_details
         reply = resp.output_text
         call = self._record(
             messages,
@@ -114,7 +123,7 @@ class OpenAICompatibleClient(_OpenAISDKClient):
             status=resp.status,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
-            reasoning_tokens=(details.reasoning_tokens or 0) if details else 0,
+            reasoning_tokens=reasoning_tokens(usage, "output_tokens_details"),
             latency_s=latency,
         )
         return reply, call
@@ -146,7 +155,6 @@ class ChatCompletionsClient(_OpenAISDKClient):
 
         choice = resp.choices[0]
         usage = resp.usage
-        details = usage.completion_tokens_details
         reply = choice.message.content or ""
         call = self._record(
             messages,
@@ -156,7 +164,7 @@ class ChatCompletionsClient(_OpenAISDKClient):
             status="incomplete" if choice.finish_reason == "length" else "completed",
             input_tokens=usage.prompt_tokens,
             output_tokens=usage.completion_tokens,
-            reasoning_tokens=(details.reasoning_tokens or 0) if details else 0,
+            reasoning_tokens=reasoning_tokens(usage, "completion_tokens_details"),
             latency_s=latency,
         )
         return reply, call

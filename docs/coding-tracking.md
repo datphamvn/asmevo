@@ -189,8 +189,8 @@ Refactor `eval/runner.py`:
 - **DoD:** chạy end-to-end trên ≥ 2 problem trong tập dev, tối đa 12 candidate, và trace đọc lại được.
   - [x] Đã chạy trên problem 0 và 1 (đã merge thử T12 vào, LLM giả lập). Mỗi problem dùng 12 candidate, `check_trace` pass, đọc lại `traces.jsonl` được. Unit test nằm ở `tests/test_evolution.py`.
   - [ ] Chạy với LLM thật, sau khi T12 merge.
-- **Cho T14, T15:** `methods/nodes.py` có store và node dùng chung. `Mutate` (charge budget → gọi LLM → `extract_asm` → `asm_hash` → `evaluate_asm`) tạo một `Candidate` cho mỗi phần tử của `shared["parents"]`; `Finish` chọn `best()` và ghi `SearchTrace`. Program có hash đã chấm thì dùng lại kết quả, không đo lại; bản sao của baseline được tính 1.0x.
-- **Chỗ tạm, đánh dấu `TODO(T#)`:** T9 thay `methods/prompt.py` (prompt `mutate_v0` và `format_feedback`). T6 thay `search_tests()` trong `methods/nodes.py`, hiện trả về toàn bộ `problem.tests`. T13 thay `final`/`fallback` trong `Finish`, hiện là kết quả search của candidate được chọn và `fallback=False`.
+- **Cho T14, T15:** `methods/search_nodes.py` có store và node dùng chung cho search (`methods/nodes.py` là node của `single_call`, `policy_tree` và `refined_best_of_n`). `Mutate` (charge budget → gọi LLM → `extract_asm` → `asm_hash` → `evaluate_asm`) tạo một `Candidate` cho mỗi phần tử của `shared["parents"]`; `Finish` chọn `best()` và ghi `SearchTrace`. Program có hash đã chấm thì dùng lại kết quả, không đo lại; bản sao của baseline được tính 1.0x.
+- **Chỗ tạm, đánh dấu `TODO(T#)`:** T9 thay `methods/prompt.py` (prompt `mutate_v0` và `format_feedback`). T6 thay `search_tests()` trong `methods/search_nodes.py`, hiện trả về toàn bộ `problem.tests`. T13 thay `final`/`fallback` trong `Finish`, hiện là kết quả search của candidate được chọn và `fallback=False`.
 
 **T14 · Implement best-of-N** · P0 · ⛔ T3, T9, T12
 - [ ] `methods/best_of_n/flow.py`: 12 mẫu độc lập từ baseline, không có feedback, chọn mẫu có fitness cao nhất.

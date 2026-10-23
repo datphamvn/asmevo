@@ -20,7 +20,7 @@ from typing import Any
 
 from asmevo.config import EvalConfig
 from asmevo.data.dataset import Problem
-from asmevo.eval.runner import build, check_tests, measure
+from asmevo.eval.runner import MeasureFailed, build, check_tests, measure, run_test
 from asmevo.schemas import Status
 
 _IDENT_RE = re.compile(r'^\s*\.ident\s+"(.*)"\s*$', re.MULTILINE)
@@ -109,15 +109,16 @@ def compare(problem: Problem, cfg: EvalConfig) -> BaselineComparison:
         data_exe, err = build(problem.baseline_asm, workdir, "dataset", cfg)
         if data_exe is None:
             raise RuntimeError(f"problem {problem.id}: dataset baseline does not build:\n{err}")
-        kept, dropped = [], []
+        kept, dropped, codes = [], [], []
         for i, test in enumerate(problem.tests):
-            status, _, _ = check_tests(data_exe, (test,), cfg)
+            status, code, _ = run_test(data_exe, test, cfg)
             if status is Status.TIMEOUT:
                 dropped.append(i)
             elif status is not Status.OK:
                 raise RuntimeError(f"problem {problem.id}: dataset baseline {status} on test {i}")
             else:
                 kept.append(i)
+                codes.append(code)
         if not kept:
             raise RuntimeError(f"problem {problem.id}: dataset baseline times out on every test")
         tests = tuple(problem.tests[i] for i in kept)
@@ -146,12 +147,15 @@ def compare(problem: Problem, cfg: EvalConfig) -> BaselineComparison:
         ours_exe, err = build(ours_asm, workdir, "ours", cfg)
         if ours_exe is None:
             return result(Status.BUILD_FAIL, detail=err)
-        status, failed, detail = check_tests(ours_exe, tests, cfg)
+        status, failed, detail = check_tests(ours_exe, tests, codes, cfg)
         if status is not Status.OK:
             return result(status, detail=f"test {kept[failed]}: {detail}")
 
-        times = measure([data_exe, ours_exe], tests, cfg)
-        data_s, ours_s = times[data_exe], times[ours_exe]
+        try:
+            data_t, ours_t = measure(data_exe, ours_exe, tests, codes, cfg, workdir)
+        except MeasureFailed as e:
+            return result(e.status, detail=e.detail)
+        data_s, ours_s = getattr(data_t, cfg.timing_stat), getattr(ours_t, cfg.timing_stat)
         return result(Status.OK, dataset_s=data_s, ours_s=ours_s, ratio=ours_s / data_s)
 
 

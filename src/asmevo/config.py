@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -18,6 +19,7 @@ LOCAL_CONFIG = ROOT / "configs" / "local.yaml"
 class DatasetConfig:
     cache_dir: str
     limit: int | None
+    problem_ids: tuple[int, ...] | None
 
 
 @dataclass(frozen=True)
@@ -46,7 +48,14 @@ class EvalConfig:
     hyperfine: str
     warmup_runs: int
     timing_repeats: int
+    timing_stat: str
+    balanced_order: bool
+    pin_cpus: bool
     workers: int
+
+    def __post_init__(self) -> None:
+        if self.timing_stat not in ("mean", "median"):
+            raise ValueError(f"eval.timing_stat must be mean or median, got {self.timing_stat!r}")
 
 
 @dataclass(frozen=True)
@@ -85,6 +94,32 @@ class SplitConfig:
 
 
 @dataclass(frozen=True)
+class PolicyTreeConfig:
+    max_calls: int
+    max_children: int
+    max_repairs: int
+    patience: int
+    min_gain: float
+
+
+@dataclass(frozen=True)
+class RefinedBestOfNConfig:
+    max_calls: int
+    samples_per_round: int  # >= max_calls leaves one round: plain best-of-N
+    min_gain: float
+
+    def __post_init__(self) -> None:
+        for key in ("max_calls", "samples_per_round"):
+            value = getattr(self, key)
+            if type(value) is not int or value < 1:  # 4.0 or true would crash or skew a run
+                raise ValueError(f"refined_best_of_n.{key} must be an integer of at least 1, "
+                                 f"got {value!r}")
+        if not (math.isfinite(self.min_gain) and self.min_gain >= 0):
+            raise ValueError("refined_best_of_n.min_gain must be finite and not negative, "
+                             f"got {self.min_gain!r}")
+
+
+@dataclass(frozen=True)
 class Config:
     dataset: DatasetConfig
     llm: LLMConfig
@@ -92,6 +127,8 @@ class Config:
     run: RunConfig
     search: SearchConfig
     split: SplitConfig
+    policy_tree: PolicyTreeConfig
+    refined_best_of_n: RefinedBestOfNConfig
 
 
 _SECTIONS = {
@@ -101,6 +138,8 @@ _SECTIONS = {
     "run": RunConfig,
     "search": SearchConfig,
     "split": SplitConfig,
+    "policy_tree": PolicyTreeConfig,
+    "refined_best_of_n": RefinedBestOfNConfig,
 }
 
 
@@ -120,11 +159,13 @@ def _build(cls: type, data: dict[str, Any]) -> Any:
 
 
 def load_config(path: Path | None = None) -> Config:
-    """``default.yaml`` overlaid key by key with ``path``, or with ``configs/local.yaml``
-    when no path is given and that file exists."""
+    """``default.yaml``, overlaid key by key with ``configs/local.yaml`` if it exists, then
+    with ``path``."""
     raw = _read(DEFAULT_CONFIG)
-    override = path or (LOCAL_CONFIG if LOCAL_CONFIG.is_file() else None)
-    if override:
+    overrides = [LOCAL_CONFIG] if LOCAL_CONFIG.is_file() else []
+    if path is not None:
+        overrides.append(path)
+    for override in overrides:
         for name, section in _read(override).items():
             raw[name] = {**raw[name], **section}
     return Config(**{name: _build(cls, raw[name]) for name, cls in _SECTIONS.items()})

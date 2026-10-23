@@ -42,27 +42,13 @@ class LLMCall:
 
 
 @dataclass(frozen=True)
-class Generation:
-    """One method's candidate assembly for one problem; replies live in ``llm_calls``."""
-
-    problem_id: int
-    method: str
-    asm: str | None
-    llm_calls: tuple[LLMCall, ...]
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> Generation:
-        d = {k: v for k, v in d.items() if k != "reply"}  # runs before replies moved to LLMCall
-        return cls(**{**d, "llm_calls": tuple(LLMCall.from_dict(c) for c in d["llm_calls"])})
-
-
-@dataclass(frozen=True)
 class EvalResult:
     problem_id: int
     status: Status
-    # baseline_median_s / candidate_median_s; the protocol scores every non-OK candidate as
-    # the -O3 baseline. Times are of one pass over the tests: the sum over tests of each
-    # test's median (or mean) run; stddev is the spread of such a pass (eval.runner.Timing).
+    # Baseline over candidate time by eval.timing_stat (median or mean); the protocol scores
+    # every non-OK candidate as the -O3 baseline. Times are of one pass over the tests: the sum
+    # over tests of each test's median (or mean) run; stddev is the spread of such a pass
+    # (eval.runner.Timing).
     speedup: float = 1.0
     baseline_mean_s: float | None = None
     candidate_mean_s: float | None = None
@@ -82,6 +68,30 @@ class EvalResult:
     def from_dict(cls, d: dict[str, Any]) -> EvalResult:
         return cls(**{**d, "status": Status(d["status"]),
                       "dropped_tests": tuple(d.get("dropped_tests", ()))})
+
+
+@dataclass(frozen=True)
+class Generation:
+    """One method's candidate assembly for one problem; replies live in ``llm_calls``."""
+
+    problem_id: int
+    method: str
+    asm: str | None
+    llm_calls: tuple[LLMCall, ...]
+    rounds: tuple[EvalResult, ...] = ()  # per-round feedback of methods that evaluate in the loop
+    round_asm: tuple[str | None, ...] = ()  # the candidate of each round
+    round_parent: tuple[int, ...] = ()  # round each one was derived from; -1 is the -O3 baseline
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> Generation:
+        d = {k: v for k, v in d.items() if k != "reply"}  # runs before replies moved to LLMCall
+        return cls(**{
+            **d,
+            "llm_calls": tuple(LLMCall.from_dict(c) for c in d["llm_calls"]),
+            "rounds": tuple(EvalResult.from_dict(r) for r in d.get("rounds", ())),
+            "round_asm": tuple(d.get("round_asm", ())),
+            "round_parent": tuple(d.get("round_parent", ())),
+        })
 
 
 def candidate_id(problem_id: int, method: str, seed: int, n: int) -> str:

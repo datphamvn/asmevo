@@ -1,7 +1,7 @@
 """Mutation prompt and feedback shared by the search methods.
 
 TODO(T9): stand-in until ``methods/common/prompt.py`` lands; swap the imports in
-``methods/nodes.py`` then. A child of the -O3 baseline sees the SuperCoder prompt unchanged,
+``methods/search_nodes.py`` then. A child of the -O3 baseline sees the SuperCoder prompt unchanged,
 as ``single_call`` does; a child of an LLM-made candidate also sees that candidate's reply and
 its feedback.
 """

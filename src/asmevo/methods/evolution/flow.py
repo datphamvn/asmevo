@@ -19,7 +19,7 @@ from pocketflow import Flow
 from asmevo.config import Config
 from asmevo.data.dataset import Problem
 from asmevo.methods.evolution.nodes import Select, Survive
-from asmevo.methods.nodes import Finish, Mutate, new_store
+from asmevo.methods.search_nodes import Finish, Mutate, new_store
 from asmevo.schemas import SearchTrace
 from asmevo.search.budget import Budget
 from asmevo.utils.llm.client import LLMClient

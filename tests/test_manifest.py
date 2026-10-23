@@ -117,7 +117,7 @@ def fake_generate(monkeypatch):
     monkeypatch.setattr(main, "load_test_set", lambda cache_dir, path, limit=None:
                         [make_problem(i) for i in range(5)][:limit])
     monkeypatch.setitem(main.METHODS, "single_call",
-                        lambda p, llm: Generation(p.id, "single_call", None, ()))
+                        lambda p, llm, cfg: Generation(p.id, "single_call", None, ()))
     return main, state
 
 

@@ -7,7 +7,8 @@ gets a fixed minimal environment, and runs in its own process group, which is ki
 afterwards, so whatever a broken, crashing or looping candidate forks dies with it. Its
 output goes to size-capped files rather than pipes, so a runaway printer cannot exhaust the
 caller's memory. The -O3 baseline of a problem is built once and its result on each test is
-cached for the life of the process.
+cached for the life of the process. With ``eval.pin_cpus``, timing runs alone on one hardware
+thread per performance core while all other work stays on the remaining cores.
 """
 
 from __future__ import annotations
@@ -19,12 +20,14 @@ import json
 import math
 import os
 import platform
+import queue
 import shutil
 import signal
 import statistics
 import subprocess
 import tempfile
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -69,8 +72,8 @@ class Timing:
         return statistics.stdev(passes) if len(passes) > 1 else 0.0
 
 
-class _MeasureFailed(Exception):
-    """The candidate passed its tests but misbehaved while being timed."""
+class MeasureFailed(Exception):
+    """The candidate passed its tests but misbehaved while being timed, i.e. it is flaky."""
 
     def __init__(self, status: Status, detail: str) -> None:
         super().__init__(detail)
@@ -105,6 +108,64 @@ def _limits(cfg: EvalConfig) -> list[str]:
     cpu_s = math.ceil(cfg.run_timeout_s) + 1
     return [_which("prlimit"), f"--as={cfg.memory_limit_mb << 20}", f"--cpu={cpu_s}",
             f"--fsize={_OUTPUT_LIMIT}", "--core=0", "--"]
+
+
+def _cpu_list(text: str) -> list[int]:
+    cpus = []
+    for part in text.strip().split(","):
+        lo, _, hi = part.partition("-")
+        cpus.extend(range(int(lo), int(hi or lo) + 1))
+    return cpus
+
+
+@functools.cache
+def cpu_layout() -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """``(timing, work)`` CPUs: one hardware thread per performance core times programs, alone
+    on its core; everything else runs on the remaining cores.
+
+    On a hybrid CPU the efficiency cores do the work; otherwise half the cores are kept for
+    timing. Read once, before ``pin_work_cpus`` narrows this process's affinity.
+    """
+    allowed = set(os.sched_getaffinity(0))
+    sysfs = Path("/sys/devices/system/cpu")
+    p_cores = Path("/sys/devices/cpu_core/cpus")
+    fast = set(_cpu_list(p_cores.read_text())) & allowed if p_cores.exists() else allowed
+    cores = sorted({tuple(_cpu_list((sysfs / f"cpu{c}/topology/thread_siblings_list")
+                                    .read_text())) for c in fast})
+    if not allowed - fast:
+        cores = cores[: max(1, len(cores) // 2)]
+    timing = tuple(sorted(core[0] for core in cores))
+    work = tuple(sorted(allowed - {c for core in cores for c in core}))
+    if not timing or not work:
+        raise SystemExit(f"cannot split CPUs {sorted(allowed)} into timing and work cores; "
+                         "set eval.pin_cpus: false")
+    return timing, work
+
+
+def pin_work_cpus() -> None:
+    """Keep this thread, the threads it starts, and their subprocesses off the timing CPUs."""
+    os.sched_setaffinity(0, cpu_layout()[1])
+
+
+@functools.cache
+def _timing_slots() -> queue.Queue[int]:
+    slots: queue.Queue[int] = queue.Queue()
+    for cpu in cpu_layout()[0]:
+        slots.put(cpu)
+    return slots
+
+
+@contextlib.contextmanager
+def _timing_cpu(cfg: EvalConfig) -> Iterator[list[str]]:
+    """Command prefix that runs hyperfine alone on a free timing CPU, waiting for one."""
+    if not cfg.pin_cpus:
+        yield []
+        return
+    cpu = _timing_slots().get()
+    try:
+        yield [_which("taskset"), "-c", str(cpu)]
+    finally:
+        _timing_slots().put(cpu)
 
 
 def _kill_group(pgid: int) -> None:
@@ -245,24 +306,28 @@ def _baseline(problem: Problem, cfg: EvalConfig) -> _Baseline:
         return _baselines[key]
 
 
-def _hyperfine(exes: tuple[Path, Path], stdin: Path, warmup: int, runs: int,
-               cfg: EvalConfig, workdir: Path) -> dict[Path, dict]:
-    """hyperfine's result per executable (``times``, ``exit_codes``; a None code means a
-    signal killed that run) for ``runs`` timed runs of each of ``exes`` on ``stdin``, in
-    that order. hyperfine itself runs under ``prlimit``, so the timed programs inherit the
-    limits without a wrapper being timed."""
+def _hyperfine(order: list[Path], stdin: Path, runs: int, cfg: EvalConfig, workdir: Path,
+               prefix: list[str]) -> list[dict]:
+    """hyperfine's result per entry of ``order`` (``times``, ``exit_codes``; a None code
+    means a signal killed that run): ``cfg.warmup_runs`` discarded runs, then ``runs`` timed
+    runs, of each entry on ``stdin`` in that order; an executable may appear more than once.
+    hyperfine itself runs under ``prlimit``, so the timed programs inherit the limits without
+    a wrapper being timed, and after ``prefix`` (``_timing_cpu``)."""
     report = workdir / "hyperfine.json"
-    cmd = [*_limits(cfg), _which(cfg.hyperfine), "--shell=none", "--style=none",
-           "--output=null", "--ignore-failure", f"--input={stdin}", f"--warmup={warmup}",
-           f"--runs={runs}", f"--export-json={report}", *map(str, exes)]
-    timeout = (warmup + runs) * len(exes) * cfg.run_timeout_s + 10
+    cmd = [*prefix, *_limits(cfg), _which(cfg.hyperfine), "--shell=none", "--style=none",
+           "--output=null", "--ignore-failure", f"--input={stdin}",
+           f"--warmup={cfg.warmup_runs}", f"--runs={runs}", f"--export-json={report}",
+           *map(str, order)]
+    timeout = (cfg.warmup_runs + runs) * len(order) * cfg.run_timeout_s + 10
     r = _run(cmd, timeout=timeout, cwd=workdir)
     if r.code is None:
-        raise _MeasureFailed(Status.TIMEOUT, f"a timed run exceeded {cfg.run_timeout_s}s")
+        raise MeasureFailed(Status.TIMEOUT, f"a timed run exceeded {cfg.run_timeout_s}s")
     if r.code != 0:
         raise RuntimeError(f"hyperfine failed with exit code {r.code}: {r.stderr[-500:]}")
     results = json.loads(report.read_text())["results"]
-    return dict(zip(exes, results, strict=True))
+    if len(results) != len(order):
+        raise RuntimeError(f"hyperfine reported {len(results)} results for {len(order)} commands")
+    return results
 
 
 def measure(base_exe: Path, cand_exe: Path, tests: tuple[TestCase, ...],
@@ -270,32 +335,37 @@ def measure(base_exe: Path, cand_exe: Path, tests: tuple[TestCase, ...],
     """Time both executables on every test, interleaved so that drift (clock frequency,
     heat, other load) hits both alike.
 
-    Per test, the ``cfg.timing_repeats`` timed runs of each program are split over two
-    hyperfine calls in ABBA order: baseline then candidate, each after ``cfg.warmup_runs``
-    discarded runs, then candidate then baseline. Raises ``_MeasureFailed`` if the candidate
-    exits otherwise than in its tests, or hangs.
+    Per test, one hyperfine call times each program ``cfg.timing_repeats`` times after
+    ``cfg.warmup_runs`` discarded runs. With ``cfg.balanced_order`` the programs run in ABBA
+    blocks of half the runs each (rounded up) after one discarded baseline block: the first
+    block of every hyperfine call runs a few percent slow, so it must not count, and ABBA
+    cancels any drift across the rest. With ``cfg.pin_cpus`` the calls run alone on a free
+    timing CPU, waiting for one. Raises ``MeasureFailed`` if the candidate exits otherwise
+    than in its tests, or hangs.
     """
-    first = math.ceil(cfg.timing_repeats / 2)
-    halves = [((base_exe, cand_exe), cfg.warmup_runs, first),
-              ((cand_exe, base_exe), 0, cfg.timing_repeats - first)]
+    if cfg.balanced_order:
+        order = [base_exe, base_exe, cand_exe, cand_exe, base_exe]
+        runs, discard = math.ceil(cfg.timing_repeats / 2), 1
+    else:
+        order, runs, discard = [base_exe, cand_exe], cfg.timing_repeats, 0
     samples: dict[Path, list[tuple[float, ...]]] = {base_exe: [], cand_exe: []}
-    for i, (test, expected) in enumerate(zip(tests, exit_codes, strict=True)):
-        stdin = workdir / f"test{i}.in"
-        stdin.write_bytes(test.stdin.encode())
-        times: dict[Path, list[float]] = {base_exe: [], cand_exe: []}
-        for order, warmup, runs in halves:
-            if runs == 0:
-                continue
-            for exe, res in _hyperfine(order, stdin, warmup, runs, cfg, workdir).items():
+    with _timing_cpu(cfg) as prefix:
+        for i, (test, expected) in enumerate(zip(tests, exit_codes, strict=True)):
+            stdin = workdir / f"test{i}.in"
+            stdin.write_bytes(test.stdin.encode())
+            times: dict[Path, list[float]] = {base_exe: [], cand_exe: []}
+            results = _hyperfine(order, stdin, runs, cfg, workdir, prefix)
+            for j, (exe, res) in enumerate(zip(order, results, strict=True)):
                 if any(code != expected for code in res["exit_codes"]):
                     detail = (f"exit codes {res['exit_codes']} while timed on test {i}, "
                               f"{expected} when tested")
                     if exe == base_exe:
                         raise RuntimeError(f"-O3 baseline is unstable: {detail}")
-                    raise _MeasureFailed(Status.CRASH, detail)
-                times[exe].extend(res["times"])
-        for exe, runs_s in times.items():
-            samples[exe].append(tuple(runs_s))
+                    raise MeasureFailed(Status.CRASH, detail)
+                if j >= discard:
+                    times[exe].extend(res["times"])
+            for exe, runs_s in times.items():
+                samples[exe].append(tuple(runs_s))
     return Timing(tuple(samples[base_exe])), Timing(tuple(samples[cand_exe]))
 
 
@@ -308,7 +378,7 @@ def evaluate_asm(
     ``NO_ASM``, and build errors, wrong output or exit code, crashes and timeouts give their
     ``Status`` with speedup 1.0. Only a broken -O3 baseline raises, as in ``evaluate``.
     ``failed_test`` and ``dropped_tests`` are positions in ``tests``. The speedup is the
-    ratio of median times (``Timing.median``).
+    ratio of ``cfg.timing_stat`` times (``Timing.median`` or ``Timing.mean``).
     """
     if asm is None:
         return EvalResult(problem_id=problem.id, status=Status.NO_ASM,
@@ -339,11 +409,11 @@ def evaluate_asm(
             return result(status, failed_test=kept[failed], detail=detail)
         try:
             base, cand = measure(baseline.exe, cand_exe, kept_tests, kept_codes, cfg, workdir)
-        except _MeasureFailed as e:
+        except MeasureFailed as e:
             return result(e.status, detail=e.detail)
     return result(
         Status.OK,
-        speedup=base.median / cand.median,
+        speedup=getattr(base, cfg.timing_stat) / getattr(cand, cfg.timing_stat),
         baseline_mean_s=base.mean,
         candidate_mean_s=cand.mean,
         baseline_median_s=base.median,

@@ -14,7 +14,8 @@ from asmevo.eval import runner
 from asmevo.eval.runner import Timing, evaluate_asm, outputs_match
 from asmevo.schemas import Status
 
-CFG = replace(load_config().eval, run_timeout_s=2, warmup_runs=1, timing_repeats=3)
+CFG = replace(load_config().eval, run_timeout_s=2, warmup_runs=1, timing_repeats=4,
+              pin_cpus=False)
 
 needs_x86_64 = pytest.mark.skipif(
     not (platform.system() == "Linux" and platform.machine() in ("x86_64", "amd64")
