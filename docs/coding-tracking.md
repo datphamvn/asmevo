@@ -85,7 +85,7 @@ graph LR
 | 2 | T6 | Implement dataset splits | P1 | ⬜ | | T5 | T13, T16 |
 | 3 | **T10** | Implement the population model and candidate mutation | **P0** | 🔵 | minhqngo.work@gmail.com | T3, T9, T11, T12 | T4, T16 |
 | 3 | T14 | Implement best-of-N | P0 | 🔵 | minhqngo.work@gmail.com | T3, T9, T12 | T16 |
-| 3 | T15 | Implement iterative refinement | P0 | ⛔ | | T3, T9, T12 | T16 |
+| 3 | T15 | Implement iterative refinement | P0 | 🔵 | minhqngo.work@gmail.com | T3, T9, T12 | T16 |
 | 3 | T13 | Implement timeouts, resource limits, and correctness checks | P1 | ⛔ | | T6, T12 | T16 |
 | 4 | **T16** | Implement the experiment runner and run 3 seeds per method | **P0** | ⛔ | | T5, T6, T10, T13, T14, T15 | T4, T17 |
 | 5 | T17 | Implement plots and analyze results | P2 | ⛔ | huynhvancuong20@gmail.com | T16 | — |
@@ -191,8 +191,12 @@ Refactor `eval/runner.py`:
 - [x] Unit test nằm ở `tests/test_best_of_n.py`; fake LLM và fake evaluator dùng chung ở `tests/fakes.py`. Đã chạy end-to-end trên problem 0 và 1 (đã merge thử T12 vào, LLM giả lập).
 - [ ] Chạy với LLM thật, sau khi T12 merge.
 
-**T15 · Implement iterative refinement** · P0 · ⛔ T3, T9, T12
-- [ ] `methods/refine/flow.py`: đi theo một hướng duy nhất qua 12 bước. Mỗi bước sửa candidate tốt nhất hiện có (hoặc candidate vừa sinh) theo feedback, và giữ lại candidate tốt nhất.
+**T15 · Implement iterative refinement** · P0 · 🔵 T12
+- [x] `methods/refine/flow.py`: đi theo một hướng duy nhất qua 12 bước. Mỗi bước sửa candidate tốt nhất hiện có (hoặc candidate vừa sinh) theo feedback, và giữ lại candidate tốt nhất.
+  - Chọn **candidate vừa sinh**: bước n sửa candidate của bước n − 1. Candidate lỗi được sửa dựa trên lỗi build, test fail hoặc crash của nó; candidate đúng thì được làm nhanh hơn. Hướng đi có thể tệ dần, nhưng `Finish` vẫn chọn candidate tốt nhất trong cả 12 bước.
+  - Node `Step` chạy cùng `Mutate`/`Finish` dùng chung của T10. Prompt chỉ chứa parent (dùng prompt `mutate_v0` như evolution), không gửi lại cả lịch sử, nên kích thước mỗi call ngang các method khác.
+- [x] Unit test nằm ở `tests/test_refine.py`. Đã chạy end-to-end trên problem 0 và 1 (đã merge thử T12 vào, LLM giả lập).
+- [ ] Chạy với LLM thật, sau khi T12 merge.
 
 **T13 · Implement timeouts, resource limits, and correctness checks** · P1 · ⛔ T6, T12
 Đã có timeout, giới hạn CPU/bộ nhớ qua `prlimit` và so sánh output (`runner.py`). Còn thiếu:
