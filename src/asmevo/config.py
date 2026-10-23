@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -64,12 +65,30 @@ class PolicyTreeConfig:
 
 
 @dataclass(frozen=True)
+class RefinedBestOfNConfig:
+    max_calls: int
+    samples_per_round: int  # >= max_calls leaves one round: plain best-of-N
+    min_gain: float
+
+    def __post_init__(self) -> None:
+        for key in ("max_calls", "samples_per_round"):
+            value = getattr(self, key)
+            if type(value) is not int or value < 1:  # 4.0 or true would crash or skew a run
+                raise ValueError(f"refined_best_of_n.{key} must be an integer of at least 1, "
+                                 f"got {value!r}")
+        if not (math.isfinite(self.min_gain) and self.min_gain >= 0):
+            raise ValueError("refined_best_of_n.min_gain must be finite and not negative, "
+                             f"got {self.min_gain!r}")
+
+
+@dataclass(frozen=True)
 class Config:
     dataset: DatasetConfig
     llm: LLMConfig
     eval: EvalConfig
     run: RunConfig
     policy_tree: PolicyTreeConfig
+    refined_best_of_n: RefinedBestOfNConfig
 
 
 _SECTIONS = {
@@ -78,6 +97,7 @@ _SECTIONS = {
     "eval": EvalConfig,
     "run": RunConfig,
     "policy_tree": PolicyTreeConfig,
+    "refined_best_of_n": RefinedBestOfNConfig,
 }
 
 
