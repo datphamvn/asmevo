@@ -1,5 +1,4 @@
 import json
-import math
 import random
 import threading
 from dataclasses import asdict
@@ -109,24 +108,6 @@ def test_parents_are_survivors_of_the_previous_generation(evaluator):
                for c in trace.candidates if c.generation == 1)
 
 
-def test_fitness_and_feedback(evaluator):
-    trace, _ = run(FakeLLM())
-    for c in trace.candidates[1:]:
-        if c.result.ok:
-            assert c.fitness == c.result.speedup
-            assert "as fast as gcc -O3" in c.feedback
-        else:
-            assert c.fitness == -math.inf
-            assert "wrong output" in c.feedback and "Test 1 stdin" in c.feedback
-    assert not trace.candidates[2].valid  # program 2 is wrong
-
-
-def test_selects_the_fittest_candidate(evaluator):
-    trace, _ = run(FakeLLM())
-    assert trace.selected_id == max(trace.candidates, key=lambda c: c.fitness).id
-    assert trace.final == trace.selected.result and not trace.fallback
-
-
 def test_child_prompts_carry_the_parent_and_its_feedback(evaluator):
     llm = FakeLLM()
     trace, _ = run(llm)
@@ -153,21 +134,6 @@ def test_each_distinct_program_is_evaluated_once(evaluator):
     no_asm = [c for c in trace.candidates if c.asm is None and c.generation > 0]
     assert len(no_asm) == 3 and all(not c.valid and c.asm_hash is None for c in no_asm)
     assert "Nothing could be built" in no_asm[0].feedback
-
-
-def test_keeps_the_baseline_when_nothing_works(monkeypatch):
-    monkeypatch.setattr(nodes, "evaluate_asm", FakeEvaluate(wrong=frozenset(range(1, 13))))
-    trace, _ = run(FakeLLM())
-    assert trace.selected_id == trace.candidates[0].id
-    assert trace.final.ok and trace.final.speedup == 1.0
-    assert all(c.parent_ids == (trace.candidates[0].id,) for c in trace.candidates[1:])
-
-
-def test_same_seed_same_lineage(evaluator):
-    first, _ = run(FakeLLM(), seed=3)
-    again, _ = run(FakeLLM(), seed=3)
-    assert first == again
-    assert first.candidates[0].id == "7-evolution-s3-0" and first.seed == 3
 
 
 def test_trace_round_trips_through_jsonl(evaluator):

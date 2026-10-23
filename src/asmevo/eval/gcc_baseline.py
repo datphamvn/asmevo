@@ -22,10 +22,9 @@ from asmevo.config import EvalConfig
 from asmevo.data.dataset import Problem
 from asmevo.eval.runner import MeasureFailed, build, check_tests, measure, run_test
 from asmevo.schemas import Status
+from asmevo.search.selection import normalize_asm
 
 _IDENT_RE = re.compile(r'^\s*\.ident\s+"(.*)"\s*$', re.MULTILINE)
-# Lines that name the source file or compiler but never change the generated code.
-_NOISE_RE = re.compile(r"^\.(file|ident)\b")
 
 
 @dataclass(frozen=True)
@@ -59,21 +58,6 @@ def asm_ident(asm: str) -> str | None:
     return m.group(1) if m else None
 
 
-def normalize_asm(asm: str) -> list[str]:
-    """Non-empty lines without ``#`` comments, ``.file`` or ``.ident``, whitespace collapsed.
-
-    Lines with a string literal keep their ``#``, which may be part of the string.
-    """
-    lines = []
-    for line in asm.splitlines():
-        if '"' not in line:
-            line = line.split("#", 1)[0]
-        line = " ".join(line.split())
-        if line and not _NOISE_RE.match(line):
-            lines.append(line)
-    return lines
-
-
 def diff_size(a: list[str], b: list[str]) -> int:
     return sum(1 for d in difflib.ndiff(a, b) if d.startswith(("+ ", "- ")))
 
@@ -103,7 +87,7 @@ def compare(problem: Problem, cfg: EvalConfig) -> BaselineComparison:
     Tests the dataset baseline cannot finish within the limit are dropped, as in
     ``runner.evaluate``. Raises only if the dataset baseline itself is broken.
     """
-    dataset_lines = normalize_asm(problem.baseline_asm)
+    dataset_lines = normalize_asm(problem.baseline_asm).splitlines()
     with tempfile.TemporaryDirectory(prefix=f"asmevo-gcc-{problem.id}-") as tmp:
         workdir = Path(tmp)
         data_exe, err = build(problem.baseline_asm, workdir, "dataset", cfg)
@@ -124,7 +108,7 @@ def compare(problem: Problem, cfg: EvalConfig) -> BaselineComparison:
         tests = tuple(problem.tests[i] for i in kept)
 
         ours_asm, err = compile_c(problem.c_code, workdir, cfg)
-        ours_lines = normalize_asm(ours_asm or "")
+        ours_lines = normalize_asm(ours_asm or "").splitlines()
 
         def result(ours_status: Status | None, **kw) -> BaselineComparison:
             return BaselineComparison(

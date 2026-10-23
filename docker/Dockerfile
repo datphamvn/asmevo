@@ -3,7 +3,7 @@ FROM --platform=linux/amd64 ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 # gcc-11 is Ubuntu 22.04's default gcc, the one that built the dataset's baseline_asm
-# (.ident "GCC: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0"); see docs/gcc-baseline.md.
+# (.ident "GCC: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0").
 ARG GCC_VERSION=11.4.0
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gcc-11 binutils libc6-dev make ca-certificates time curl \

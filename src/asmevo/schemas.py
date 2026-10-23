@@ -31,8 +31,7 @@ class LLMCall:
     reasoning_tokens: int
     cost_usd: float
     latency_s: float
-    # The exact request and reply, so every candidate can be traced back to its prompt.
-    # Defaults keep runs recorded before these fields were added loadable.
+    # The exact request and reply. Older runs, the paper's included, don't have them.
     messages: tuple[dict[str, str], ...] = ()
     reply: str = ""
 
@@ -45,10 +44,8 @@ class LLMCall:
 class EvalResult:
     problem_id: int
     status: Status
-    # Baseline over candidate time by eval.timing_stat (median or mean); the protocol scores
-    # every non-OK candidate as the -O3 baseline. Times are of one pass over the tests: the sum
-    # over tests of each test's median (or mean) run; stddev is the spread of such a pass
-    # (eval.runner.Timing).
+    # Baseline over candidate time by eval.timing_stat; anything but OK scores as -O3 (1.0).
+    # Times are per pass over the tests, as eval.runner.Timing computes them.
     speedup: float = 1.0
     baseline_mean_s: float | None = None
     candidate_mean_s: float | None = None
@@ -67,7 +64,7 @@ class EvalResult:
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> EvalResult:
         return cls(**{**d, "status": Status(d["status"]),
-                      "dropped_tests": tuple(d.get("dropped_tests", ()))})
+                      "dropped_tests": tuple(d["dropped_tests"])})
 
 
 @dataclass(frozen=True)
@@ -84,13 +81,13 @@ class Generation:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Generation:
-        d = {k: v for k, v in d.items() if k != "reply"}  # runs before replies moved to LLMCall
+        d = {k: v for k, v in d.items() if k != "reply"}  # older runs stored it here
         return cls(**{
             **d,
             "llm_calls": tuple(LLMCall.from_dict(c) for c in d["llm_calls"]),
-            "rounds": tuple(EvalResult.from_dict(r) for r in d.get("rounds", ())),
-            "round_asm": tuple(d.get("round_asm", ())),
-            "round_parent": tuple(d.get("round_parent", ())),
+            "rounds": tuple(EvalResult.from_dict(r) for r in d["rounds"]),
+            "round_asm": tuple(d["round_asm"]),
+            "round_parent": tuple(d["round_parent"]),
         })
 
 

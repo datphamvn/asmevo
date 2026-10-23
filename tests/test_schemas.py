@@ -3,8 +3,9 @@ import math
 from dataclasses import asdict
 
 import pytest
+import yaml
 
-from asmevo.config import ROOT, SearchConfig, load_config
+from asmevo.config import load_config
 from asmevo.schemas import Candidate, EvalResult, LLMCall, SearchTrace, Status, candidate_id
 
 
@@ -34,17 +35,6 @@ def make_trace() -> SearchTrace:
                        final=EvalResult(problem_id=7, status=Status.OK), fallback=False)
 
 
-def test_candidate_id():
-    assert candidate_id(7, "evolution", 0, 3) == "7-evolution-s0-3"
-
-
-def test_eval_result_roundtrip():
-    r = EvalResult(problem_id=1, status=Status.TIMEOUT, failed_test=0, dropped_tests=(1, 2))
-    back = roundtrip(r, EvalResult)
-    assert back == r
-    assert back.status is Status.TIMEOUT
-
-
 def test_search_trace_roundtrip():
     trace = make_trace()
     assert roundtrip(trace, SearchTrace) == trace
@@ -59,15 +49,15 @@ def test_derived_properties():
     assert trace.total_output_tokens == 20
 
 
-def test_config_sections():
-    cfg = load_config()
-    assert cfg.search.max_candidates == 12
-    assert cfg.search.seeds == (0, 1, 2)
-    assert 0 < cfg.split.heldout_fraction < 1
-    assert load_config(ROOT / "configs" / "fptcloud.yaml").search == cfg.search
-
-
-def test_search_config_rejects_over_budget():
-    with pytest.raises(ValueError, match="max_candidates"):
-        SearchConfig(max_candidates=12, population_size=4, offspring_per_generation=5,
-                     generations=3, tournament_size=2, seeds=(0,))
+@pytest.mark.parametrize("section, bad, match", [
+    ("search", {"offspring_per_generation": 5}, "max_candidates"),
+    ("eval", {"timing_stat": "min"}, "timing_stat"),
+    ("eoh", {"operators": ["e1", "x9"]}, "eoh.operators"),
+    ("asmgraft", {"discount": 0.0}, "asmgraft.discount"),
+    ("refined_best_of_n", {"samples_per_round": 4.0}, "refined_best_of_n"),
+])
+def test_bad_settings_fail_when_the_config_loads(tmp_path, section, bad, match):
+    override = tmp_path / "bad.yaml"
+    override.write_text(yaml.safe_dump({section: bad}))
+    with pytest.raises(ValueError, match=match):
+        load_config(override)

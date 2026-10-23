@@ -13,12 +13,12 @@ def _write_run(tmp_path: Path) -> None:
         EvalResult(2, Status.BUILD_FAIL, detail="asm error"),
     ]
     generations = [
-        Generation(1, "policy_tree", "ret", (
-            LLMCall("m", "policy_expand", "completed", 10, 20, 0, 0.0, 0.4,
+        Generation(1, "aide", "ret", (
+            LLMCall("m", "aide_improve", "completed", 10, 20, 0, 0.0, 0.4,
                     reply="```assembly\nret\n```"),
         )),
-        Generation(2, "policy_tree", None, (
-            LLMCall("m", "policy_expand", "completed", 10, 5, 0, 0.0, 0.2, reply="no code"),
+        Generation(2, "aide", None, (
+            LLMCall("m", "aide_improve", "completed", 10, 5, 0, 0.0, 0.2, reply="no code"),
         )),
     ]
     (tmp_path / "results.jsonl").write_text(

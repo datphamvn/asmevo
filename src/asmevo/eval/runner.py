@@ -90,7 +90,7 @@ def _which(tool: str) -> str:
 
 
 @functools.cache
-def _require_linux_x86_64() -> None:
+def require_linux_x86_64() -> None:
     if platform.system() != "Linux" or platform.machine().lower() not in {"x86_64", "amd64"}:
         raise RuntimeError("evaluating needs Linux x86-64 (natively or in the docker image); "
                            f"this host is {platform.system()} {platform.machine()}")
@@ -383,7 +383,7 @@ def evaluate_asm(
     if asm is None:
         return EvalResult(problem_id=problem.id, status=Status.NO_ASM,
                           detail="no ```assembly block")
-    _require_linux_x86_64()
+    require_linux_x86_64()
     if not tests:
         raise ValueError(f"problem {problem.id}: no tests to evaluate on")
     baseline = _baseline(problem, cfg)

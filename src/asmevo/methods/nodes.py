@@ -1,5 +1,6 @@
 """PocketFlow store and nodes shared by the methods that return a ``Generation`` (single_call,
-policy_tree, refined_best_of_n); ``methods/search_nodes.py`` holds those of the search methods.
+refined_best_of_n, refinement_loop, aide, eoh, asmgraft); ``methods/search_nodes.py`` holds
+those of the search methods.
 
 Every method is a ``pocketflow.Flow`` over one shared dict made by ``new_store``:
 

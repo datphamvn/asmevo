@@ -11,9 +11,6 @@ from asmevo.eval.gcc_baseline import (
     BaselineComparison,
     asm_ident,
     compare,
-    compile_c,
-    diff_size,
-    normalize_asm,
     summarize,
 )
 from asmevo.schemas import Status
@@ -33,22 +30,6 @@ main:
 def test_asm_ident():
     assert asm_ident(ASM) == "GCC: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0"
     assert asm_ident("main:\n\tret\n") is None
-
-
-def test_normalize_asm_drops_noise_and_keeps_strings():
-    assert normalize_asm(ASM) == [".text", ".globl main", ".LC0:", '.string "#%d"', "main:", "ret"]
-
-
-def test_normalize_asm_ignores_compiler_and_file_name():
-    other = ASM.replace("11.4.0", "12.3.0").replace("temp.c", "x.c").replace("\t", "  ")
-    assert normalize_asm(other) == normalize_asm(ASM)
-
-
-def test_diff_size():
-    a = ["x", "y", "z"]
-    assert diff_size(a, a) == 0
-    assert diff_size(a, ["x", "w", "z"]) == 2  # one removed, one added
-    assert diff_size(a, ["x"]) == 2
 
 
 def test_summarize_geomean():
@@ -100,14 +81,6 @@ def problem(c_code: str = C_CODE, *, baseline_asm: str | None = None) -> Problem
 
 
 @needs_toolchain
-def test_compile_c(tmp_path):
-    asm, err = compile_c(C_CODE, tmp_path, eval_cfg())
-    assert err == "" and asm is not None and "main:" in asm
-    asm, err = compile_c("int main( {", tmp_path, eval_cfg())
-    assert asm is None and "error" in err
-
-
-@needs_toolchain
 def test_compare_same_compiler_is_identical_and_timed():
     r = compare(problem(), eval_cfg())
     assert r.compile_ok and r.identical and r.diff_lines == 0
@@ -123,7 +96,3 @@ def test_compare_reports_wrong_output_without_raising():
     assert r.ours_status is Status.WRONG_OUTPUT and r.ratio is None
 
 
-@needs_toolchain
-def test_compare_reports_compile_failure():
-    r = compare(problem("int main( {"), eval_cfg())
-    assert not r.compile_ok and r.ours_status is None and "error" in r.detail

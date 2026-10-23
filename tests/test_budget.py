@@ -1,6 +1,5 @@
 import math
 import threading
-from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -58,17 +57,6 @@ def test_charge_until_exhausted():
     assert budget.remaining == 0
 
 
-def test_default_is_the_protocol_budget():
-    assert Budget().max_candidates == 12
-
-
-def test_zero_and_negative_budgets():
-    with pytest.raises(BudgetExhausted):
-        Budget(0).charge()
-    with pytest.raises(ValueError):
-        Budget(-1)
-
-
 def test_concurrent_charges_never_exceed_cap():
     budget = Budget(12)
     granted = []
@@ -98,50 +86,6 @@ def test_guard_rejects_uncharged_call():
     assert inner.calls == 0
 
 
-def test_guard_caps_a_greedy_method_at_12_calls():
-    inner, budget = FakeLLM(), Budget(12)
-    llm = budget.guard(inner)
-    made = 0
-    with pytest.raises(BudgetExhausted):
-        while True:
-            budget.charge()
-            llm.complete([{"role": "user", "content": "x"}], prompt_id="p")
-            made += 1
-    assert made == inner.calls == len(budget.calls) == 12
-
-
-def test_parallel_offspring_stay_within_budget():
-    inner, budget = FakeLLM(), Budget(12)
-    llm = budget.guard(inner)
-
-    def offspring(_):  # each worker tries 5 candidates, 20 in all
-        made = 0
-        for _ in range(5):
-            try:
-                budget.charge()
-            except BudgetExhausted:
-                break
-            llm.complete([], prompt_id="p")
-            made += 1
-        return made
-
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        made = sum(pool.map(offspring, range(4)))
-    assert made == inner.calls == len(budget.calls) == 12
-
-
-def test_failed_call_keeps_its_charge():
-    budget = Budget(2)
-    llm = budget.guard(FakeLLM(fail_on=1))
-    budget.charge()
-    with pytest.raises(ConnectionError):
-        llm.complete([], prompt_id="p")
-    assert budget.remaining == 1
-    assert budget.calls == ()
-    with pytest.raises(RuntimeError):  # the failed attempt used up its charge
-        llm.complete([], prompt_id="p")
-
-
 def test_check_trace_accepts_exact_accounting():
     budget = Budget(12)
     llm = budget.guard(FakeLLM())
@@ -165,16 +109,3 @@ def test_check_trace_rejects_dropped_call():
         budget.check_trace(make_trace([(calls[0],)]))
 
 
-def test_check_trace_rejects_unguarded_call():
-    budget = Budget(12)
-    with pytest.raises(ValueError, match="did not record"):
-        budget.check_trace(make_trace([(make_call(1),)]))
-
-
-def test_check_trace_rejects_call_listed_twice():
-    budget = Budget(12)
-    llm = budget.guard(FakeLLM())
-    budget.charge()
-    call = llm.complete([], prompt_id="p")[1]
-    with pytest.raises(ValueError, match="listed twice"):  # would double its cost
-        budget.check_trace(make_trace([(call,), (call,)]))

@@ -1,0 +1,19 @@
+# The paper's runs: the full test set at k = 128 LLM calls per problem for every budgeted
+# method, with every other setting as in configs/default.yaml. Run one asmevo process at a time.
+# Use with: uv run asmevo --config configs/full-k128.yaml generate --method <method>
+
+refined_best_of_n:          # one round of 128 samples: plain best-of-N
+  max_calls: 128
+  samples_per_round: 128
+
+refinement_loop:
+  rounds: 128
+
+aide:
+  max_calls: 128
+
+eoh:
+  max_calls: 128
+
+asmgraft:
+  max_calls: 128

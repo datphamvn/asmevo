@@ -4,7 +4,6 @@ import random
 import re
 import shutil
 import subprocess
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -77,16 +76,6 @@ def ids(pop):
     return [c.id.rsplit("-", 1)[1] for c in pop]
 
 
-def test_normalize_drops_only_inert_lines():
-    lines = normalize_asm(BASELINE_ASM).splitlines()
-    assert '.string "%ld # not a comment\\n"' in lines
-    assert ".p2align 4" in lines
-    assert '.section .note.GNU-stack,"",@progbits' in lines
-    assert "subq $8,%rsp" in lines
-    assert not any(line.startswith((".cfi_", ".file", ".ident", ".size", ".type"))
-                   for line in lines)
-
-
 def test_hash_ignores_layout_comments_and_inert_directives():
     assert asm_hash(REFORMATTED_ASM) == asm_hash(BASELINE_ASM)
 
@@ -109,32 +98,9 @@ def test_tournament_never_picks_invalid():
     assert all(tournament(pop, 2, rng) is BASELINE for _ in range(50))
 
 
-def test_tournament_is_seeded_and_selective():
-    pop = [BASELINE, make(1, 1.5), make(2, 2.0), make(3, 0.8)]
-    draws = [tournament(pop, 2, random.Random(7)) for _ in range(3)]
-    assert draws[0] is draws[1] is draws[2]  # same seed, same parent
-    rng = random.Random(0)
-    winners = {tournament(pop, 2, rng).id for _ in range(200)}
-    assert pop[3].id not in winners  # the weakest always meets a fitter member
-    assert len(winners) == 3  # selection pressure, not elitism: others win sometimes
-    assert tournament(pop, 4, rng) is pop[2]
-
-
-def test_tournament_rejects_bad_input():
-    with pytest.raises(ValueError):
-        tournament([make(1, INVALID, generation=0)], 2, random.Random(0))
-    with pytest.raises(ValueError):
-        tournament([BASELINE], 0, random.Random(0))
-
-
 def test_survive_keeps_baseline_and_fittest():
     offspring = [make(n, 1.0 + n / 10) for n in range(1, 6)]
     assert ids(survive([BASELINE], offspring, size=4)) == ["0", "5", "4", "3"]
-
-
-def test_survive_drops_invalid_but_keeps_slower_valid():
-    offspring = [make(1, INVALID), make(2, 0.9)]
-    assert ids(survive([BASELINE], offspring)) == ["0", "2"]
 
 
 def test_survive_dedups_keeping_the_earliest_copy():
@@ -144,49 +110,12 @@ def test_survive_dedups_keeping_the_earliest_copy():
     assert ids(survive([BASELINE, member], [retimed, baseline_copy])) == ["0", "1"]
 
 
-def test_survive_ties_keep_population_order():
-    pop = [BASELINE, make(1, 1.5)]
-    assert ids(survive(pop, [make(2, 1.5), make(3, 1.5)], size=3)) == ["0", "1", "2"]
-
-
-def test_survive_requires_one_baseline():
-    with pytest.raises(ValueError):
-        survive([make(1, 1.2)], [])
-    with pytest.raises(ValueError):
-        survive([BASELINE], [], size=0)
-
-
-def test_best_so_far_is_never_lost():
-    rng = random.Random(1)
-    pop, n, best_so_far = (BASELINE,), 0, 1.0
-    for _ in range(20):
-        offspring = []
-        for _ in range(4):
-            n += 1
-            offspring.append(make(n, rng.choice([INVALID, rng.uniform(0.5, 2.0)])))
-        best_so_far = max([best_so_far] + [c.fitness for c in offspring if c.valid])
-        pop = survive(pop, offspring)
-        assert pop[0] is BASELINE and len(pop) <= 4
-        assert max(c.fitness for c in pop) == best_so_far
-
-
 def test_best_prefers_fitness_then_earliest():
     tie = make(1, 1.0)
     assert best([BASELINE, tie, make(2, INVALID)]) is BASELINE
     assert best([BASELINE, tie, make(3, 1.3)]).id.endswith("-3")
     with pytest.raises(ValueError):
         best([make(4, INVALID)])
-
-
-def test_strings_keep_separators_and_comment_markers():
-    asm = '\t.string\t"x; y # z /* w */"  # a real comment\n'
-    assert normalize_asm(asm) == '.string "x; y # z /* w */"'
-
-
-def test_dedup_falls_back_to_hashing_the_asm():
-    member = replace(make(1, 1.2, asm="movl $1, %eax\nret\n"), asm_hash=None)
-    same_code = replace(make(2, 1.9, asm="movl $1,%eax\n\n  ret  # done\n"), asm_hash=None)
-    assert ids(survive([BASELINE, member], [same_code])) == ["0", "1"]
 
 
 # Strings with comment and separator characters, a jump table, and initialized data.

@@ -14,17 +14,16 @@ from pocketflow import Node
 
 from asmevo.data.dataset import Problem
 from asmevo.methods.nodes import EvaluateAsm
-from asmevo.methods.policy_tree.nodes import score
 from asmevo.methods.refined_best_of_n.prompt import build_note, build_round_prompt
 from asmevo.schemas import EvalResult, Status
+from asmevo.search.selection import asm_hash
 
 BASELINE = -1
 
 
-def normalize_asm(asm: str) -> str:
-    """``asm`` without trailing whitespace or blank lines; equal results are one program."""
-    # T11's asm_hash replaces this once develop is merged.
-    return "\n".join(line.rstrip() for line in asm.splitlines() if line.strip())
+def score(result: EvalResult) -> float:
+    """1 for the -O3 baseline, ``1 + log(speedup)`` if correct, 0 otherwise."""
+    return 1 + math.log(result.speedup) if result.ok else 0.0
 
 
 def baseline_copy(problem: Problem) -> EvalResult:
@@ -39,7 +38,7 @@ def baseline_copy(problem: Problem) -> EvalResult:
 
 def next_incumbent(rounds: list[EvalResult], start: int, incumbent: int, min_gain: float) -> int:
     """The fastest correct of ``rounds[start:]`` (the earliest of equals) if it beats the
-    incumbent by more than ``min_gain`` as the policy tree counts gains, else the incumbent.
+    incumbent by more than ``min_gain``, else the incumbent.
 
     Depends only on the rounds so far, never on the remaining budget, so the first k calls of
     a longer run are exactly a k-call run.
@@ -71,7 +70,7 @@ class DedupEvaluateAsm(EvaluateAsm):
 
     def prep(self, shared):
         problem, gen, cfg = super().prep(shared)
-        key = None if gen.asm is None else normalize_asm(gen.asm)
+        key = None if gen.asm is None else asm_hash(gen.asm)
         cached = None if key is None else shared["eval_cache"].get(key)
         return problem, gen, cfg, key, cached
 
@@ -79,7 +78,7 @@ class DedupEvaluateAsm(EvaluateAsm):
         problem, gen, cfg, key, cached = prep_res
         if cached is not None:
             return cached
-        if key is not None and key == normalize_asm(problem.baseline_asm):
+        if key is not None and key == asm_hash(problem.baseline_asm):
             return baseline_copy(problem)
         return super().exec((problem, gen, cfg))
 

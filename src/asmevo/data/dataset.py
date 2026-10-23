@@ -51,30 +51,15 @@ def sha256_file(path: Path, chunk_size: int = 1 << 20) -> str:
     return h.hexdigest()
 
 
-def download_test_file(
-    name: str = HF_REPO,
-    revision: str = HF_REVISION,
-    test_file: str = TEST_FILE,
-    cache_dir: str | None = "data/cache",
-) -> Path:
+def download_test_file(cache_dir: str) -> Path:
     """Local path of the pinned parquet, downloaded once into ``cache_dir``."""
-    return Path(hf_hub_download(repo_id=name, filename=test_file, revision=revision,
+    return Path(hf_hub_download(repo_id=HF_REPO, filename=TEST_FILE, revision=HF_REVISION,
                                 repo_type="dataset", cache_dir=cache_dir))
 
 
-def load_test_set(
-    name: str = HF_REPO,
-    revision: str = HF_REVISION,
-    test_file: str = TEST_FILE,
-    cache_dir: str | None = "data/cache",
-    limit: int | None = None,
-    path: Path | None = None,
-) -> list[Problem]:
-    """Problems from ``path``, or from the pinned parquet when no path is given.
-
-    Pass the path you hashed with ``sha256_file`` so the manifest names the bytes loaded.
-    """
-    path = path or download_test_file(name, revision, test_file, cache_dir)
+def load_test_set(path: Path, cache_dir: str, limit: int | None = None) -> list[Problem]:
+    """Problems from the parquet at ``path``, the one hashed with ``sha256_file``, so the
+    manifest names the bytes loaded."""
     ds = load_dataset("parquet", data_files={"test": str(path)}, split="test",
                       cache_dir=cache_dir)
     if limit is not None:

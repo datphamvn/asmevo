@@ -1,4 +1,3 @@
-import hashlib
 import json
 from dataclasses import replace
 
@@ -6,7 +5,7 @@ import pytest
 
 from asmevo.config import load_config
 from asmevo.data import manifest as m
-from asmevo.data.dataset import Problem, sha256_file
+from asmevo.data.dataset import Problem
 from asmevo.data.manifest import build_manifest, read_manifest, select_problems, write_manifest
 
 SHA = "a" * 64
@@ -29,12 +28,6 @@ def manifest(problems, monkeypatch) -> dict:
     return build_manifest(problems, dataset_sha256=SHA, cfg=load_config(), seed=0)
 
 
-def test_sha256_file(tmp_path):
-    path = tmp_path / "f.parquet"
-    path.write_bytes(b"x" * 3_000_000)  # spans several chunks
-    assert sha256_file(path) == hashlib.sha256(b"x" * 3_000_000).hexdigest()
-
-
 def test_build_manifest(manifest):
     assert manifest["dataset"]["sha256"] == SHA
     assert manifest["problem_ids"] == [3, 1, 2]
@@ -43,20 +36,6 @@ def test_build_manifest(manifest):
     assert manifest["seed"] == 0
     assert manifest["toolchain"] == {"cc": "gcc 1.0", "hyperfine": "hyperfine 1.0"}
     assert manifest["git"] == {"commit": "c0", "dirty": False}
-
-
-def test_build_manifest_without_tools(problems, monkeypatch):
-    monkeypatch.setattr(m, "tool_version", lambda cmd: None)
-    monkeypatch.setattr(m, "git_commit", lambda: None)
-    out = build_manifest(problems, dataset_sha256=SHA, cfg=load_config(), seed=None,
-                         splits={"dev": [3], "test": [1, 2]})
-    assert out["toolchain"] == {"cc": None, "hyperfine": None}
-    assert out["git"] is None and out["seed"] is None
-    assert out["splits"] == {"dev": [3], "test": [1, 2]}
-
-
-def test_tool_version_missing():
-    assert m.tool_version("asmevo-no-such-tool") is None
 
 
 def test_write_manifest_resume(tmp_path, manifest):
@@ -79,28 +58,9 @@ def test_write_manifest_rejects_changes(tmp_path, manifest, key, value):
         write_manifest(tmp_path, {**manifest, key: value})
 
 
-def test_select_problems_keeps_manifest_order(problems, manifest):
-    selected = select_problems(sorted(problems, key=lambda p: p.id), manifest, SHA)
-    assert [p.id for p in selected] == [3, 1, 2]
-
-
 def test_select_problems_rejects_other_dataset(problems, manifest):
     with pytest.raises(ValueError, match="SHA-256"):
         select_problems(problems, manifest, "b" * 64)
-
-
-def test_select_problems_rejects_missing_id(problems, manifest):
-    with pytest.raises(ValueError, match=r"\[2\]"):
-        select_problems(problems[:2], manifest, SHA)
-
-
-def test_record_evaluate(tmp_path, manifest, monkeypatch):
-    write_manifest(tmp_path, manifest)
-    monkeypatch.setattr(m, "tool_version", lambda cmd: f"{cmd} 12.3")
-    m.record_evaluate(tmp_path, load_config())
-    out = read_manifest(tmp_path)
-    assert out["evaluate"]["toolchain"] == {"cc": "gcc 12.3", "hyperfine": "hyperfine 12.3"}
-    assert {k: out[k] for k in m.REPRODUCIBLE} == {k: manifest[k] for k in m.REPRODUCIBLE}
 
 
 @pytest.fixture

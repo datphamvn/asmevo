@@ -94,15 +94,6 @@ class SplitConfig:
 
 
 @dataclass(frozen=True)
-class PolicyTreeConfig:
-    max_calls: int
-    max_children: int
-    max_repairs: int
-    patience: int
-    min_gain: float
-
-
-@dataclass(frozen=True)
 class RefinedBestOfNConfig:
     max_calls: int
     samples_per_round: int  # >= max_calls leaves one round: plain best-of-N
@@ -120,6 +111,45 @@ class RefinedBestOfNConfig:
 
 
 @dataclass(frozen=True)
+class RefinementLoopConfig:
+    rounds: int
+
+
+@dataclass(frozen=True)
+class AideConfig:
+    max_calls: int
+    num_drafts: int
+    debug_prob: float
+    max_debug_depth: int
+
+
+@dataclass(frozen=True)
+class EohConfig:
+    max_calls: int
+    pop_size: int
+    num_parents: int
+    operators: tuple[str, ...]  # applied in turn after the i1 seeds
+
+    def __post_init__(self) -> None:
+        if not self.operators or set(self.operators) - {"e1", "e2", "m1", "m2"}:
+            raise ValueError("eoh.operators must be a non-empty list of e1, e2, m1, m2, "
+                             f"got {list(self.operators)}")
+
+
+@dataclass(frozen=True)
+class AsmGraftConfig:
+    max_calls: int
+    max_repairs: int  # repairs in a row of a broken latest candidate (R)
+    min_gain: float  # a pull is rewarded if its child beats the reference by this much (delta)
+    rex_c: float  # REx constant of the node bandit (C)
+    discount: float  # posterior decay of the role bandit, in (0, 1] (gamma)
+
+    def __post_init__(self) -> None:
+        if not 0 < self.discount <= 1:
+            raise ValueError(f"asmgraft.discount must be in (0, 1], got {self.discount}")
+
+
+@dataclass(frozen=True)
 class Config:
     dataset: DatasetConfig
     llm: LLMConfig
@@ -127,8 +157,11 @@ class Config:
     run: RunConfig
     search: SearchConfig
     split: SplitConfig
-    policy_tree: PolicyTreeConfig
     refined_best_of_n: RefinedBestOfNConfig
+    refinement_loop: RefinementLoopConfig
+    aide: AideConfig
+    eoh: EohConfig
+    asmgraft: AsmGraftConfig
 
 
 _SECTIONS = {
@@ -138,8 +171,11 @@ _SECTIONS = {
     "run": RunConfig,
     "search": SearchConfig,
     "split": SplitConfig,
-    "policy_tree": PolicyTreeConfig,
     "refined_best_of_n": RefinedBestOfNConfig,
+    "refinement_loop": RefinementLoopConfig,
+    "aide": AideConfig,
+    "eoh": EohConfig,
+    "asmgraft": AsmGraftConfig,
 }
 
 
